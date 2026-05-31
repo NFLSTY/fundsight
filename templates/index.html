@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FundSight — AI Personal Finance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0a0e1a; --bg2: #0d1117; --card: #111827;
+            --green: #00d4aa; --purple: #7c3aed; --amber: #f59e0b;
+            --text: #e6edf3; --muted: #8b949e; --border: #1e2d3d;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+        /* Grid bg */
+        body::before {
+            content:''; position:fixed; inset:0;
+            background-image: linear-gradient(rgba(30,45,61,0.4) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(30,45,61,0.4) 1px, transparent 1px);
+            background-size: 50px 50px; pointer-events:none; z-index:0;
+        }
+        .container { max-width:1100px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
+        /* Nav */
+        nav {
+            padding:20px 0; border-bottom:1px solid var(--border);
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .nav-logo {
+            font-family:'Syne',sans-serif; font-size:22px; font-weight:800;
+            background: linear-gradient(135deg, var(--green), var(--purple));
+            background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        }
+        .nav-cta {
+            padding:9px 22px; border-radius:8px;
+            background: linear-gradient(135deg, var(--green), #00b894);
+            color:#0a0e1a; font-weight:700; font-size:13px;
+            text-decoration:none; transition:all 0.2s;
+        }
+        .nav-cta:hover { transform:translateY(-2px); box-shadow:0 0 24px rgba(0,212,170,0.4); }
+        /* Hero */
+        .hero {
+            padding:80px 0 60px; text-align:center;
+        }
+        .hero-badge {
+            display:inline-flex; align-items:center; gap:8px;
+            padding:6px 16px; border-radius:20px;
+            border:1px solid rgba(0,212,170,0.3);
+            background:rgba(0,212,170,0.08);
+            font-size:12px; color:var(--green); font-weight:600;
+            letter-spacing:0.5px; margin-bottom:28px;
+        }
+        .hero-badge .dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .hero h1 {
+            font-family:'Syne',sans-serif;
+            font-size:clamp(42px,6vw,76px); font-weight:800;
+            line-height:1.05; letter-spacing:-2px;
+            margin-bottom:20px;
+        }
+        .hero h1 .line1 { color:var(--text); }
+        .hero h1 .line2 {
+            background: linear-gradient(135deg, var(--green) 0%, var(--purple) 60%, var(--amber) 100%);
+            background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+        }
+        .hero-sub {
+            font-size:17px; color:var(--muted); max-width:560px;
+            margin:0 auto 40px; line-height:1.65;
+        }
+        .hero-actions { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+        .btn-hero {
+            padding:13px 32px; border-radius:10px; font-size:15px;
+            font-weight:700; text-decoration:none; transition:all 0.2s;
+            display:inline-flex; align-items:center; gap:8px;
+            font-family:'DM Sans',sans-serif;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--green), #00b894); color:#0a0e1a; }
+        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 0 30px rgba(0,212,170,0.4); }
+        .btn-outline { border:1px solid var(--border); color:var(--muted); background:transparent; }
+        .btn-outline:hover { border-color:var(--green); color:var(--green); }
+        /* Stats row */
+        .stats-row {
+            display:grid; grid-template-columns:repeat(4,1fr);
+            gap:1px; background:var(--border);
+            border:1px solid var(--border); border-radius:14px;
+            overflow:hidden; margin:56px 0;
+        }
+        .stat-item {
+            background:var(--card); padding:28px 20px; text-align:center;
+        }
+        .stat-num {
+            font-family:'Space Mono',monospace; font-size:28px; font-weight:700;
+            background: linear-gradient(135deg, var(--green), var(--purple));
+            background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+            display:block;
+        }
+        .stat-desc { font-size:12px; color:var(--muted); margin-top:4px; }
+        /* Features */
+        .section-label {
+            font-size:11px; font-weight:700; color:var(--green);
+            text-transform:uppercase; letter-spacing:2px; margin-bottom:12px;
+        }
+        .section-title {
+            font-family:'Syne',sans-serif; font-size:36px; font-weight:800;
+            line-height:1.2; margin-bottom:14px; letter-spacing:-1px;
+        }
+        .section-sub { font-size:15px; color:var(--muted); max-width:500px; line-height:1.6; }
+        .features { padding:60px 0; }
+        .features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:48px; }
+        .feature-card {
+            background:var(--card); border:1px solid var(--border);
+            border-radius:14px; padding:28px;
+            transition:all 0.25s; cursor:default;
+        }
+        .feature-card:hover {
+            border-color:rgba(0,212,170,0.3);
+            transform:translateY(-4px);
+            box-shadow:0 20px 40px rgba(0,0,0,0.3);
+        }
+        .feature-icon {
+            width:44px; height:44px; border-radius:10px;
+            display:flex; align-items:center; justify-content:center;
+            font-size:18px; margin-bottom:16px;
+        }
+        .feature-icon.g { background:rgba(0,212,170,0.15); color:var(--green); }
+        .feature-icon.p { background:rgba(124,58,237,0.15); color:var(--purple); }
+        .feature-icon.a { background:rgba(245,158,11,0.15); color:var(--amber); }
+        .feature-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; margin-bottom:8px; }
+        .feature-desc { font-size:13.5px; color:var(--muted); line-height:1.6; }
+        /* Tech stack */
+        .tech-section { padding:48px 0; border-top:1px solid var(--border); }
+        .tech-items { display:flex; gap:12px; flex-wrap:wrap; margin-top:28px; }
+        .tech-pill {
+            display:flex; align-items:center; gap:8px;
+            padding:8px 16px; border-radius:8px;
+            background:var(--card); border:1px solid var(--border);
+            font-size:13px; color:var(--muted);
+            font-family:'Space Mono',monospace;
+        }
+        .tech-pill i { color:var(--green); font-size:14px; }
+        /* CTA section */
+        .cta-section {
+            padding:64px 0; text-align:center;
+        }
+        .cta-box {
+            background: linear-gradient(135deg, rgba(0,212,170,0.08), rgba(124,58,237,0.08));
+            border:1px solid rgba(0,212,170,0.2);
+            border-radius:20px; padding:56px 40px;
+        }
+        footer {
+            padding:24px 0; border-top:1px solid var(--border);
+            text-align:center; font-size:12px; color:var(--muted);
+        }
+        @media(max-width:768px) {
+            .stats-row { grid-template-columns:repeat(2,1fr); }
+            .features-grid { grid-template-columns:1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <nav>
+        <div class="nav-logo">FundSight</div>
+        <a href="/dashboard" class="nav-cta">Open Dashboard <i class="fas fa-arrow-right"></i></a>
+    </nav>
+    <section class="hero">
+        <div class="hero-badge">
+            <div class="dot"></div>
+            Powered by Google Gemini AI
+        </div>
+        <h1>
+            <div class="line1">Your Personal</div>
+            <div class="line2">Finance Intelligence</div>
+        </h1>
+        <p class="hero-sub">
+            AI-driven budget planning, expense analysis, savings strategies, and investment guidance — all running locally, no database required.
+        </p>
+        <div class="hero-actions">
+            <a href="/dashboard" class="btn-hero btn-primary"><i class="fas fa-rocket"></i> Get Started Free</a>
+            <a href="/chat" class="btn-hero btn-outline"><i class="fas fa-robot"></i> Ask AI Assistant</a>
+        </div>
+    </section>
+    <div class="stats-row">
+        <div class="stat-item"><span class="stat-num">6</span><div class="stat-desc">AI-Powered Modules</div></div>
+        <div class="stat-item"><span class="stat-num">100%</span><div class="stat-desc">Local & Private</div></div>
+        <div class="stat-item"><span class="stat-num">0</span><div class="stat-desc">Database Required</div></div>
+        <div class="stat-item"><span class="stat-num">∞</span><div class="stat-desc">Smart Insights</div></div>
+    </div>
+    <section class="features">
+        <div class="section-label">Features</div>
+        <div class="section-title">Everything you need<br>to master your finances</div>
+        <div class="section-sub">From AI budget allocation to personalized investment guidance — FundSight covers the full financial planning lifecycle.</div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon g"><i class="fas fa-chart-pie"></i></div>
+                <div class="feature-title">Smart Budget Planner</div>
+                <div class="feature-desc">Input your income and expenses, get AI-generated 50/30/20 allocation with personalized overspending analysis.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon p"><i class="fas fa-piggy-bank"></i></div>
+                <div class="feature-title">Savings Goal Engine</div>
+                <div class="feature-desc">Set savings targets with timelines and let AI generate monthly milestone plans with actionable strategies.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon a"><i class="fas fa-robot"></i></div>
+                <div class="feature-title">AI Financial Assistant</div>
+                <div class="feature-desc">Context-aware chatbot that knows your finances and answers questions with personalized advice in real-time.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon g"><i class="fas fa-seedling"></i></div>
+                <div class="feature-title">Investment Guidance</div>
+                <div class="feature-desc">Risk-based investment recommendations tailored for the Indonesian market — Reksa Dana, ORI, saham, and more.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon p"><i class="fas fa-file-csv"></i></div>
+                <div class="feature-title">CSV Expense Import</div>
+                <div class="feature-desc">Bulk-import your expenses from any CSV file. Auto-categorizes and generates instant visual breakdowns.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon a"><i class="fas fa-file-pdf"></i></div>
+                <div class="feature-title">PDF Report Export</div>
+                <div class="feature-desc">Download a complete financial report with expense tables, summaries, and savings breakdown in one click.</div>
+            </div>
+        </div>
+    </section>
+    <section class="tech-section">
+        <div class="section-label">Tech Stack</div>
+        <div class="section-title" style="font-size:24px;">Built with modern Python tools</div>
+        <div class="tech-items">
+            <div class="tech-pill"><i class="fas fa-python"></i>Python 3.10+</div>
+            <div class="tech-pill"><i class="fas fa-flask"></i>Flask</div>
+            <div class="tech-pill"><i class="fas fa-brain"></i>Gemini 1.5 Flash</div>
+            <div class="tech-pill"><i class="fas fa-chart-bar"></i>Matplotlib</div>
+            <div class="tech-pill"><i class="fas fa-file-pdf"></i>ReportLab</div>
+            <div class="tech-pill"><i class="fas fa-code"></i>Vanilla JS</div>
+        </div>
+    </section>
+    <section class="cta-section">
+        <div class="cta-box">
+            <div class="section-label">Ready to start?</div>
+            <h2 style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;margin-bottom:14px;letter-spacing:-1px;">Take control of your finances today</h2>
+            <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Enter your income, track expenses, and get AI-powered insights instantly.</p>
+            <a href="/dashboard" class="btn-hero btn-primary" style="font-size:15px;">
+                <i class="fas fa-rocket"></i> Launch Dashboard
+            </a>
+        </div>
+    </section>
+    <footer>
+        <p>FundSight &copy; 2025 — AI-Powered Personal Finance | Built with Python + Flask</p>
+    </footer>
+</div>
+</body>
+</html>
