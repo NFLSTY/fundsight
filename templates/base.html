@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FundSight{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #0d1117;
+            --bg-card: #111827;
+            --bg-card-hover: #1a2332;
+            --border: #1e2d3d;
+            --border-bright: #2d4060;
+            --accent-green: #00d4aa;
+            --accent-purple: #7c3aed;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #484f58;
+            --glow-green: 0 0 20px rgba(0, 212, 170, 0.3);
+            --glow-purple: 0 0 20px rgba(124, 58, 237, 0.3);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        /* Sidebar */
+        .sidebar {
+            position: fixed; left: 0; top: 0; height: 100vh; width: 240px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            z-index: 100; padding: 0;
+            transition: width 0.3s ease;
+        }
+        .sidebar-logo {
+            padding: 28px 24px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 22px; font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-purple));
+            background-clip:text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .logo-sub {
+            font-size: 10px; color: var(--text-muted);
+            font-family: 'Space Mono', monospace;
+            letter-spacing: 1px; text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .nav-section { padding: 16px 12px; flex: 1; overflow-y: auto; }
+        .nav-label {
+            font-size: 9px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 1.5px;
+            padding: 0 12px; margin-bottom: 6px; margin-top: 12px;
+        }
+        .nav-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; border-radius: 8px;
+            text-decoration: none; color: var(--text-secondary);
+            font-size: 13.5px; font-weight: 500;
+            transition: all 0.2s; margin-bottom: 2px;
+        }
+        .nav-item:hover {
+            background: var(--bg-card); color: var(--text-primary);
+            transform: translateX(3px);
+        }
+        .nav-item.active {
+            background: linear-gradient(135deg, rgba(0,212,170,0.15), rgba(124,58,237,0.1));
+            color: var(--accent-green);
+            border: 1px solid rgba(0,212,170,0.2);
+        }
+        .nav-item i { width: 16px; text-align: center; font-size: 13px; }
+        .sidebar-footer {
+            padding: 16px 12px;
+            border-top: 1px solid var(--border);
+        }
+        .api-status {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 12px; border-radius: 8px;
+            background: var(--bg-card); font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        /* Main Content */
+        .main {
+            margin-left: 240px;
+            min-height: 100vh;
+            padding: 32px;
+        }
+        .page-header {
+            margin-bottom: 28px;
+        }
+        .page-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 28px; font-weight: 800;
+            background: linear-gradient(135deg, var(--text-primary) 60%, var(--accent-green));
+            background-clip:text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .page-sub { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px; padding: 24px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .card:hover { border-color: var(--border-bright); }
+        .card-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 14px; font-weight: 700;
+            color: var(--text-secondary); text-transform: uppercase;
+            letter-spacing: 0.5px; margin-bottom: 16px;
+        }
+        .card-title i { margin-right: 8px; }
+        /* Grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        /* Stat Cards */
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 14px; padding: 20px;
+            position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: ''; position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+        }
+        .stat-card.green::before { background: linear-gradient(90deg, var(--accent-green), transparent); }
+        .stat-card.purple::before { background: linear-gradient(90deg, var(--accent-purple), transparent); }
+        .stat-card.amber::before { background: linear-gradient(90deg, var(--accent-amber), transparent); }
+        .stat-card.red::before { background: linear-gradient(90deg, var(--accent-red), transparent); }
+        .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .stat-value {
+            font-family: 'Space Mono', monospace;
+            font-size: 22px; font-weight: 700;
+            margin: 8px 0 4px; color: var(--text-primary);
+        }
+        .stat-sub { font-size: 12px; color: var(--text-secondary); }
+        .stat-icon {
+            position: absolute; right: 20px; top: 20px;
+            font-size: 24px; opacity: 0.15;
+        }
+        /* Inputs */
+        .input-group { margin-bottom: 16px; }
+        .input-label {
+            display: block; font-size: 12px; font-weight: 600;
+            color: var(--text-secondary); margin-bottom: 6px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .input-field {
+            width: 100%; padding: 11px 14px;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text-primary);
+            font-size: 14px; font-family: 'DM Sans', sans-serif;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        .input-field:focus {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 0 3px rgba(0,212,170,0.1);
+        }
+        select.input-field { cursor: pointer; }
+        /* Buttons */
+        .btn {
+            padding: 10px 20px; border-radius: 8px;
+            font-size: 13.5px; font-weight: 600;
+            cursor: pointer; border: none; transition: all 0.2s;
+            font-family: 'DM Sans', sans-serif;
+            display: inline-flex; align-items: center; gap: 7px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-green), #00b894);
+            color: #0a0e1a;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: var(--glow-green); }
+        .btn-secondary {
+            background: transparent; border: 1px solid var(--border-bright);
+            color: var(--text-secondary);
+        }
+        .btn-secondary:hover { border-color: var(--accent-green); color: var(--accent-green); }
+        .btn-purple {
+            background: linear-gradient(135deg, var(--accent-purple), #6d28d9);
+            color: white;
+        }
+        .btn-purple:hover { transform: translateY(-1px); box-shadow: var(--glow-purple); }
+        .btn-danger {
+            background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+            color: var(--accent-red);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.25); }
+        .btn-sm { padding: 7px 14px; font-size: 12px; }
+        /* AI Response */
+        .ai-response {
+            background: linear-gradient(135deg, rgba(0,212,170,0.05), rgba(124,58,237,0.05));
+            border: 1px solid rgba(0,212,170,0.2);
+            border-radius: 12px; padding: 20px;
+            font-size: 14px; line-height: 1.7;
+            white-space: pre-wrap; color: var(--text-primary);
+        }
+        .ai-loading {
+            display: flex; align-items: center; gap: 10px;
+            color: var(--text-secondary); font-size: 13px;
+        }
+        .ai-loading::before {
+            content: ''; width: 16px; height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent-green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Badge */
+        .badge {
+            display: inline-block; padding: 3px 10px;
+            border-radius: 20px; font-size: 11px; font-weight: 600;
+        }
+        .badge-green { background: rgba(0,212,170,0.15); color: var(--accent-green); }
+        .badge-red { background: rgba(239,68,68,0.15); color: var(--accent-red); }
+        .badge-amber { background: rgba(245,158,11,0.15); color: var(--accent-amber); }
+        .badge-purple { background: rgba(124,58,237,0.15); color: var(--accent-purple); }
+        /* Progress bar */
+        .progress-bar {
+            height: 6px; background: var(--border);
+            border-radius: 3px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 3px;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-purple));
+            transition: width 0.5s ease;
+        }
+        /* Tag */
+        .tag {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 500;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .tag-remove { cursor: pointer; color: var(--text-muted); }
+        .tag-remove:hover { color: var(--accent-red); }
+        /* Chart container */
+        .chart-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px; padding: 16px;
+            text-align: center; min-height: 200px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .chart-container img { max-width: 100%; border-radius: 8px; }
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 18px;
+            font-size: 13px; color: var(--text-primary);
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            z-index: 1000; transform: translateY(80px); opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { border-color: rgba(0,212,170,0.4); }
+        .toast.error { border-color: rgba(239,68,68,0.4); }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .sidebar { width: 60px; }
+            .sidebar-logo .logo-text, .sidebar-logo .logo-sub,
+            .nav-item span, .nav-label, .api-status span { display: none; }
+            .main { margin-left: 60px; padding: 20px 16px; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+<aside class="sidebar">
+    <div class="sidebar-logo">
+        <div class="logo-text">FundSight</div>
+        <div class="logo-sub">AI Finance</div>
+    </div>
+    <nav class="nav-section">
+        <div class="nav-label">Overview</div>
+        <a href="/dashboard" class="nav-item {% if request.path == '/dashboard' %}active{% endif %}">
+            <i class="fas fa-chart-line"></i><span>Dashboard</span>
+        </a>
+        <div class="nav-label">Planning</div>
+        <a href="/budget" class="nav-item {% if request.path == '/budget' %}active{% endif %}">
+            <i class="fas fa-wallet"></i><span>Budget</span>
+        </a>
+        <a href="/savings" class="nav-item {% if request.path == '/savings' %}active{% endif %}">
+            <i class="fas fa-piggy-bank"></i><span>Savings Goal</span>
+        </a>
+        <a href="/investment" class="nav-item {% if request.path == '/investment' %}active{% endif %}">
+            <i class="fas fa-seedling"></i><span>Investment</span>
+        </a>
+        <div class="nav-label">Tools</div>
+        <a href="/chat" class="nav-item {% if request.path == '/chat' %}active{% endif %}">
+            <i class="fas fa-robot"></i><span>AI Assistant</span>
+        </a>
+        <a href="/reports" class="nav-item {% if request.path == '/reports' %}active{% endif %}">
+            <i class="fas fa-chart-simple"></i><span>Reports</span>
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="api-status">
+            <div class="status-dot" id="api-status-dot"></div>
+            <span id="api-status-text">Checking AI...</span>
+        </div>
+    </div>
+</aside>
+
+<main class="main">
+    {% block content %}{% endblock %}
+</main>
+<div class="toast" id="toast"></div>
+<script>
+function showToast(msg, type='success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3000);
+}
+async function apiCall(url, method='GET', body=null) {
+    const opts = { method, headers: {'Content-Type': 'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    return r.json();
+}
+function formatRp(n) {
+    return 'Rp ' + Number(n).toLocaleString('id-ID');
+}
+</script>
+{% block scripts %}{% endblock %}
+<script>
+    async function checkApiStatus() {
+        try {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            const dot = document.getElementById('api-status-dot');
+            const text = document.getElementById('api-status-text');
+            if (data.status === 'ok') {
+                dot.style.background = 'var(--accent-green)';
+                text.textContent = 'Gemini AI Active';
+            } else {
+                dot.style.background = 'var(--accent-red)';
+                text.textContent = 'AI Offline';
+                dot.style.animation = 'none';
+            }
+        } catch (e) {
+            const dot = document.getElementById('api-status-dot');
+            dot.style.background = 'var(--accent-red)';
+            document.getElementById('api-status-text').textContent = 'Error';
+            dot.style.animation = 'none';
+        }
+    }
+    // Run status check on load
+    window.addEventListener('DOMContentLoaded', checkApiStatus);
+</script>
+</body>
+</html>
