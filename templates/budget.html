@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Budget Planner — FundSight{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Budget Planner</h1>
+    <p class="page-sub">AI-powered budget allocation with expense tracking & CSV import</p>
+</div>
+
+<div class="grid-2" style="margin-bottom:24px;">
+    <!-- Input Panel -->
+    <div>
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-title"><i class="fas fa-wallet"></i> Income & Expenses</div>
+            <div class="input-group">
+                <label class="input-label">Monthly Income (Rp)</label>
+                <input type="number" class="input-field" id="b-income" placeholder="e.g. 8000000">
+            </div>
+            <button class="btn btn-primary" onclick="saveIncome()" style="width:100%;justify-content:center;margin-bottom:20px;">
+                <i class="fas fa-save"></i> Save Income
+            </button>
+            <hr style="border:none;border-top:1px solid var(--border);margin-bottom:20px;">
+            <div class="card-title" style="margin-bottom:12px;"><i class="fas fa-plus"></i> Add Expense</div>
+            <div class="input-group">
+                <label class="input-label">Category</label>
+                <select class="input-field" id="b-cat-select" onchange="handleCatSelect(this)">
+                    <option value="">— Choose or type below —</option>
+                    <option>Food & Dining</option>
+                    <option>Transportation</option>
+                    <option>Housing / Rent</option>
+                    <option>Utilities</option>
+                    <option>Healthcare</option>
+                    <option>Entertainment</option>
+                    <option>Education</option>
+                    <option>Shopping</option>
+                    <option>Savings</option>
+                    <option>Other</option>
+                    <option value="custom">Custom...</option>
+                </select>
+            </div>
+            <div class="input-group" id="custom-cat-group" style="display:none;">
+                <label class="input-label">Custom Category</label>
+                <input type="text" class="input-field" id="b-cat-custom" placeholder="Enter category name">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Amount (Rp)</label>
+                <input type="number" class="input-field" id="b-amt" placeholder="e.g. 500000">
+            </div>
+            <button class="btn btn-purple" onclick="addExpense()" style="width:100%;justify-content:center;">
+                <i class="fas fa-plus-circle"></i> Add Expense
+            </button>
+        </div>
+
+        <!-- CSV Upload -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-file-csv"></i> Import from CSV</div>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">CSV column (mandatory): <code style="background:var(--bg-secondary);padding:2px 6px;border-radius:4px;font-family:'Space Mono',monospace;">category,amount</code></p>
+            <div id="drop-zone" style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all 0.2s;" onclick="document.getElementById('csv-file').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+                <i class="fas fa-cloud-upload-alt" style="font-size:28px;color:var(--text-muted);margin-bottom:10px;display:block;"></i>
+                <div style="font-size:13px;color:var(--text-muted);">Drop CSV here or click to browse</div>
+            </div>
+            <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this.files[0])">
+            <div id="csv-status" style="margin-top:10px;font-size:12px;color:var(--text-secondary);"></div>
+            
+            <!-- CSV Preview Card (Hidden by default) -->
+            <div id="csv-preview-container" style="display:none; margin-top:16px; background:var(--bg-secondary); border-radius:8px; padding:12px;">
+                <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:8px; display:flex; justify-content:space-between;">
+                    <span><i class="fas fa-eye"></i> Import Preview (First 5)</span>
+                    <i class="fas fa-times" style="cursor:pointer;" onclick="document.getElementById('csv-preview-container').style.display='none'"></i>
+                </div>
+                <div id="csv-preview-list" style="font-size:12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div>
+        <!-- Current expenses -->
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span><i class="fas fa-list-ul"></i> Expense Breakdown</span>
+                <span id="b-total" class="badge badge-red">Rp 0</span>
+            </div>
+            <div id="b-expense-list">
+                <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">No expenses yet</div>
+            </div>
+            <!-- Progress bars -->
+            <div id="b-budget-bars" style="margin-top:16px;"></div>
+        </div>
+
+        <!-- Charts -->
+        <div class="card">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span><i class="fas fa-chart-pie"></i> Visualization</span>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-secondary btn-sm" onclick="loadChart('pie')">Pie</button>
+                    <button class="btn btn-secondary btn-sm" onclick="loadChart('bar')">Bar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="loadChart('budget')">50/30/20</button>
+                </div>
+            </div>
+            <div class="chart-container" id="b-chart">
+                <div style="color:var(--text-muted);font-size:13px;">Select a visualization above</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Budget Analysis -->
+<div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><i class="fas fa-brain"></i> AI Budget Analysis</span>
+        <button class="btn btn-primary btn-sm" onclick="getAIBudget()"><i class="fas fa-sparkles"></i> Analyze with AI</button>
+    </div>
+    <div id="ai-budget-response">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">
+            <i class="fas fa-brain" style="font-size:36px;opacity:0.2;display:block;margin-bottom:12px;"></i>
+            Add your income and expenses, then click "Analyze with AI" for personalized budget recommendations
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let finData = {};
+async function loadData() {
+    finData = await apiCall('/api/get_data');
+    document.getElementById('b-income').value = finData.income || '';
+    updateExpenseList();
+}
+function handleCatSelect(sel) {
+    const cg = document.getElementById('custom-cat-group');
+    cg.style.display = sel.value === 'custom' ? 'block' : 'none';
+}
+function getCategory() {
+    const sel = document.getElementById('b-cat-select');
+    if (sel.value === 'custom') return document.getElementById('b-cat-custom').value.trim();
+    return sel.value;
+}
+function updateExpenseList() {
+    const exp = finData.expenses || {};
+    const income = finData.income || 0;
+    const total = finData.total_expenses || 0;
+    document.getElementById('b-total').textContent = formatRp(total);
+    const el = document.getElementById('b-expense-list');
+    if (!Object.keys(exp).length) {
+        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">No expenses yet</div>';
+        document.getElementById('b-budget-bars').innerHTML = '';
+        return;
+    }
+    el.innerHTML = Object.entries(exp).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>`
+        <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                <span style="font-size:13.5px;font-weight:500;">${cat}</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-family:'Space Mono',monospace;font-size:12px;">${formatRp(amt)}</span>
+                    <button class="btn btn-danger btn-sm" style="padding:3px 7px;" onclick="removeExpense('${cat}')"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width:${income > 0 ? Math.min((amt/income)*100,100) : 0}%;"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${income > 0 ? ((amt/income)*100).toFixed(1)+'% of income' : '-'}</div>
+        </div>`).join('');
+    // 50/30/20 bars
+    if (income > 0) {
+        const needs = income*0.5, savings = income*0.2, wants = income*0.3;
+        document.getElementById('b-budget-bars').innerHTML = `
+            <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">50/30/20 Budget Rule</div>
+            ${[['Needs (50%)',needs,'var(--accent-green)'],['Wants (30%)',wants,'var(--accent-purple)'],['Savings (20%)',savings,'var(--accent-amber)']].map(([label,target,color])=>`
+            <div style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                    <span style="color:var(--text-secondary);">${label}</span>
+                    <span style="font-family:'Space Mono',monospace;color:${color};">${formatRp(target)}</span>
+                </div>
+                <div class="progress-bar"><div style="height:100%;width:100%;border-radius:3px;background:${color};opacity:0.6;"></div></div>
+            </div>`).join('')}`;
+    }
+}
+async function saveIncome() {
+    const v = parseFloat(document.getElementById('b-income').value);
+    if (!v || v<=0) return showToast('Enter valid income', 'error');
+    await apiCall('/api/update_income','POST',{income:v});
+    await loadData(); showToast('Income saved!');
+}
+async function addExpense() {
+    const cat = getCategory();
+    const amt = parseFloat(document.getElementById('b-amt').value);
+    if (!cat || !amt || amt<=0) return showToast('Enter category and amount','error');
+    await apiCall('/api/add_expense','POST',{category:cat,amount:amt});
+    document.getElementById('b-amt').value = '';
+    await loadData(); showToast('Expense added!');
+}
+async function removeExpense(cat) {
+    await apiCall('/api/remove_expense','POST',{category:cat});
+    await loadData(); showToast('Removed');
+}
+async function loadChart(type) {
+    const el = document.getElementById('b-chart');
+    el.innerHTML = '<div class="ai-loading">Generating chart...</div>';
+    const apiMap = {pie:'expense_pie',bar:'expense_bar',budget:'budget_allocation'};
+    try {
+        const r = await apiCall(`/api/chart/${apiMap[type]}`);
+        el.innerHTML = r.image ? `<img src="data:image/png;base64,${r.image}" style="max-width:100%;">` :
+            `<div style="color:var(--text-muted);font-size:13px;">${r.error}</div>`;
+    } catch { el.innerHTML = '<div style="color:var(--accent-red);">Error</div>'; }
+}
+async function uploadCSV(file) {
+    if (!file) return;
+    const status = document.getElementById('csv-status');
+    status.textContent = 'Uploading...';
+    const form = new FormData();
+    form.append('file', file);
+    const r = await fetch('/api/upload_csv', {method:'POST', body:form});
+    const data = await r.json();
+    if (data.success) {
+        status.textContent = `✓ Imported ${data.added} expense entries`;
+        status.style.color = 'var(--accent-green)';
+        
+        // Render preview if available
+        if (data.preview && data.preview.length > 0) {
+            const previewContainer = document.getElementById('csv-preview-container');
+            const previewList = document.getElementById('csv-preview-list');
+            previewList.innerHTML = data.preview.map(item => `
+                <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <span style="color:var(--text-primary);">${item.category}</span>
+                    <span style="font-family:'Space Mono',monospace; color:var(--text-muted);">Rp ${Number(item.amount).toLocaleString('id-ID')}</span>
+                </div>
+            `).join('');
+            previewContainer.style.display = 'block';
+        }
+        
+        await loadData();
+        showToast(`Imported ${data.added} entries!`);
+    } else {
+        status.textContent = `Error: ${data.error}`;
+        status.style.color = 'var(--accent-red)';
+    }
+}
+function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('drop-zone').style.borderColor = 'var(--accent-green)';
+}
+function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('drop-zone').style.borderColor = 'var(--border)';
+    uploadCSV(e.dataTransfer.files[0]);
+}
+async function getAIBudget() {
+    const el = document.getElementById('ai-budget-response');
+    el.innerHTML = '<div class="ai-loading" style="padding:20px;">Analyzing your budget with AI...</div>';
+    try {
+        const r = await apiCall('/api/ai_budget','POST',{income:finData.income,expenses:finData.expenses});
+        el.innerHTML = `<div class="ai-response">${marked.parse(r.advice)}</div>`;
+    } catch { el.innerHTML = '<div style="color:var(--accent-red);padding:20px;">AI error. Check Gemini API key.</div>'; }
+}
+loadData();
+</script>
+{% endblock %}
