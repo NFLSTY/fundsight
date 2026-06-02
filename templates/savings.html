@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Savings Goal — FundSight{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Savings Goal Planner</h1>
+    <p class="page-sub">Set targets, visualize progress, and get AI-powered monthly saving strategies</p>
+</div>
+
+<div class="grid-2" style="margin-bottom:24px;">
+    <div class="card">
+        <div class="card-title"><i class="fas fa-bullseye"></i> Define Your Goal</div>
+        <div class="input-group">
+            <label class="input-label">Goal Name</label>
+            <input type="text" class="input-field" id="sg-name" placeholder="e.g. Emergency Fund, Vacation, Laptop">
+        </div>
+        <div class="input-group">
+            <label class="input-label">Target Amount (Rp)</label>
+            <input type="number" class="input-field" id="sg-amount" placeholder="e.g. 30000000" oninput="updateCalc()">
+        </div>
+        <div class="input-group">
+            <label class="input-label">Timeline (months)</label>
+            <input type="number" class="input-field" id="sg-months" placeholder="e.g. 12" oninput="updateCalc()">
+        </div>
+        <div id="sg-calc" style="padding:14px;background:var(--bg-secondary);border-radius:10px;margin-bottom:16px;display:none;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Quick Calculation</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted);">Monthly needed</div>
+                    <div id="calc-monthly" style="font-family:'Space Mono',monospace;font-size:16px;color:var(--accent-green);font-weight:700;"></div>
+                </div>
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted);">Weekly needed</div>
+                    <div id="calc-weekly" style="font-family:'Space Mono',monospace;font-size:16px;color:var(--accent-purple);font-weight:700;"></div>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveGoal()" style="width:100%;justify-content:center;">
+            <i class="fas fa-save"></i> Save Savings Goal
+        </button>
+    </div>
+
+    <div>
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-title"><i class="fas fa-info-circle"></i> Goal Status</div>
+            <div id="goal-status">
+                <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">Set a savings goal to see status</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span><i class="fas fa-chart-line"></i> Projection Chart</span>
+                <button class="btn btn-secondary btn-sm" onclick="loadProjection()"><i class="fas fa-sync"></i> Generate</button>
+            </div>
+            <div class="chart-container" id="savings-chart">
+                <div style="color:var(--text-muted);font-size:13px;">Save a goal to see projection</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Goal Cards / Templates -->
+<div style="margin-bottom:24px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:14px;">
+        <i class="fas fa-bookmark"></i> Common Savings Goals — Click to use as template
+    </div>
+    <div class="grid-3">
+        <div class="card" style="cursor:pointer;transition:all 0.2s;" onclick="setTemplate('Emergency Fund','30000000',6)" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:24px;margin-bottom:10px;">🛡️</div>
+            <div style="font-weight:600;margin-bottom:4px;">Emergency Fund</div>
+            <div style="font-size:12px;color:var(--text-muted);">Rp 30,000,000 · 6 months</div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:all 0.2s;" onclick="setTemplate('Vacation Fund','15000000',8)" onmouseover="this.style.borderColor='var(--accent-purple)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:24px;margin-bottom:10px;">✈️</div>
+            <div style="font-weight:600;margin-bottom:4px;">Vacation Fund</div>
+            <div style="font-size:12px;color:var(--text-muted);">Rp 15,000,000 · 8 months</div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:all 0.2s;" onclick="setTemplate('New Laptop','20000000',10)" onmouseover="this.style.borderColor='var(--accent-amber)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:24px;margin-bottom:10px;">💻</div>
+            <div style="font-weight:600;margin-bottom:4px;">New Laptop</div>
+            <div style="font-size:12px;color:var(--text-muted);">Rp 20,000,000 · 10 months</div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Savings Plan -->
+<div class="card" style="margin-top:24px;">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><i class="fas fa-robot"></i> AI Monthly Savings Plan</span>
+        <button class="btn btn-primary btn-sm" onclick="getAISavings()"><i class="fas fa-sparkles"></i> Generate Plan</button>
+    </div>
+    <div id="ai-savings-response">
+        <div style="text-align:center;padding:48px;color:var(--text-muted);font-size:13px;">
+            <i class="fas fa-piggy-bank" style="font-size:40px;opacity:0.2;display:block;margin-bottom:12px;"></i>
+            Set your savings goal and click "Generate Plan" for a personalized AI monthly savings strategy
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let finData = {};
+async function loadData() {
+    finData = await apiCall('/api/get_data');
+    const sg = finData.savings_goal;
+    if (sg && sg.amount > 0) {
+        document.getElementById('sg-name').value = sg.name;
+        document.getElementById('sg-amount').value = sg.amount;
+        document.getElementById('sg-months').value = sg.timeline_months;
+        updateCalc();
+        updateGoalStatus();
+    }
+}
+function updateCalc() {
+    const amt = parseFloat(document.getElementById('sg-amount').value);
+    const mnths = parseInt(document.getElementById('sg-months').value);
+    const calc = document.getElementById('sg-calc');
+    if (amt > 0 && mnths > 0) {
+        const monthly = amt / mnths;
+        const weekly = monthly / 4.33;
+        document.getElementById('calc-monthly').textContent = formatRp(monthly);
+        document.getElementById('calc-weekly').textContent = formatRp(weekly);
+        calc.style.display = 'block';
+    } else {
+        calc.style.display = 'none';
+    }
+}
+function updateGoalStatus() {
+    const sg = finData.savings_goal;
+    const income = finData.income;
+    const total_exp = finData.total_expenses;
+    const available = income - total_exp;
+    const monthly_needed = sg.amount / sg.timeline_months;
+    const feasible = available >= monthly_needed;
+    document.getElementById('goal-status').innerHTML = `
+        <div style="margin-bottom:14px;">
+            <div style="font-size:20px;font-weight:700;font-family:'Syne',sans-serif;">${sg.name}</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Target: ${formatRp(sg.amount)} in ${sg.timeline_months} months</div>
+        </div>
+        <div class="grid-2" style="gap:12px;margin-bottom:14px;">
+            <div style="background:var(--bg-secondary);padding:14px;border-radius:10px;">
+                <div style="font-size:11px;color:var(--text-muted);">Monthly Required</div>
+                <div style="font-family:'Space Mono',monospace;font-size:16px;color:var(--accent-green);font-weight:700;">${formatRp(monthly_needed)}</div>
+            </div>
+            <div style="background:var(--bg-secondary);padding:14px;border-radius:10px;">
+                <div style="font-size:11px;color:var(--text-muted);">Currently Available</div>
+                <div style="font-family:'Space Mono',monospace;font-size:16px;color:${feasible?'var(--accent-green)':'var(--accent-red)'};font-weight:700;">${formatRp(available)}</div>
+            </div>
+        </div>
+        <div style="padding:10px 14px;border-radius:8px;background:${feasible?'rgba(0,212,170,0.1)':'rgba(239,68,68,0.1)'};border:1px solid ${feasible?'rgba(0,212,170,0.3)':'rgba(239,68,68,0.3)'};font-size:13px;color:${feasible?'var(--accent-green)':'var(--accent-red)'};">
+            ${feasible ? '✓ Goal is feasible with your current budget!' : `⚠ Need Rp ${(monthly_needed-available).toLocaleString('id-ID')} more per month`}
+        </div>`;
+}
+async function saveGoal() {
+    const name = document.getElementById('sg-name').value.trim();
+    const amount = parseFloat(document.getElementById('sg-amount').value);
+    const months = parseInt(document.getElementById('sg-months').value);
+    if (!name || !amount || !months) return showToast('Fill all fields', 'error');
+    await apiCall('/api/update_savings_goal','POST',{name,amount,timeline_months:months});
+    await loadData();
+    showToast('Savings goal saved!');
+}
+async function loadProjection() {
+    const el = document.getElementById('savings-chart');
+    el.innerHTML = '<div class="ai-loading">Generating projection...</div>';
+    try {
+        const r = await apiCall('/api/chart/savings_projection');
+        el.innerHTML = r.image ? `<img src="data:image/png;base64,${r.image}" style="max-width:100%;">` :
+            `<div style="color:var(--text-muted);font-size:13px;">${r.error}</div>`;
+    } catch { el.innerHTML = '<div style="color:var(--accent-red);">Error</div>'; }
+}
+async function getAISavings() {
+    const el = document.getElementById('ai-savings-response');
+    el.innerHTML = '<div class="ai-loading" style="padding:24px;">Generating personalized savings plan with AI...</div>';
+    try {
+        const r = await apiCall('/api/ai_savings','POST',{
+            goal: finData.savings_goal, income: finData.income
+        });
+        el.innerHTML = `<div class="ai-response">${marked.parse(r.plan)}</div>`;
+    } catch { el.innerHTML = '<div style="color:var(--accent-red);padding:20px;">AI error. Check Gemini API key.</div>'; }
+}
+function setTemplate(name, amount, months) {
+    document.getElementById('sg-name').value = name;
+    document.getElementById('sg-amount').value = amount;
+    document.getElementById('sg-months').value = months;
+    updateCalc();
+    showToast(`Template applied: ${name}`);
+}
+loadData();
+</script>
+{% endblock %}
