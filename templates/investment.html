@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Investment — FundSight{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Investment Guidance</h1>
+    <p class="page-sub">AI-powered investment recommendations tailored for the Indonesian market</p>
+</div>
+
+<!-- Risk selector -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-title"><i class="fas fa-sliders"></i> Your Risk Profile</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Select your investment risk tolerance — this determines the type of instruments and expected returns.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;" id="risk-cards">
+        <div class="risk-card" data-risk="Low" onclick="selectRisk('Low')" style="background:var(--bg-secondary);border:2px solid var(--border);border-radius:14px;padding:24px;cursor:pointer;transition:all 0.2s;text-align:center;">
+            <div style="font-size:36px;margin-bottom:12px;">🛡️</div>
+            <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:8px;">Conservative</div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.5;">Capital preservation. Low returns, minimal risk. Ideal for beginners or short timelines.</div>
+            <div style="margin-top:14px;padding:6px 14px;border-radius:6px;background:rgba(0,212,170,0.15);color:var(--accent-green);font-size:12px;font-weight:600;">4-8% annual return</div>
+        </div>
+        <div class="risk-card" data-risk="Medium" onclick="selectRisk('Medium')" style="background:var(--bg-secondary);border:2px solid var(--border);border-radius:14px;padding:24px;cursor:pointer;transition:all 0.2s;text-align:center;">
+            <div style="font-size:36px;margin-bottom:12px;">⚖️</div>
+            <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:8px;">Balanced</div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.5;">Mix of growth and stability. Moderate returns with acceptable volatility.</div>
+            <div style="margin-top:14px;padding:6px 14px;border-radius:6px;background:rgba(245,158,11,0.15);color:var(--accent-amber);font-size:12px;font-weight:600;">8-15% annual return</div>
+        </div>
+        <div class="risk-card" data-risk="High" onclick="selectRisk('High')" style="background:var(--bg-secondary);border:2px solid var(--border);border-radius:14px;padding:24px;cursor:pointer;transition:all 0.2s;text-align:center;">
+            <div style="font-size:36px;margin-bottom:12px;">🚀</div>
+            <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:8px;">Aggressive</div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.5;">Maximum growth potential. High volatility, long-term horizon required.</div>
+            <div style="margin-top:14px;padding:6px 14px;border-radius:6px;background:rgba(239,68,68,0.15);color:var(--accent-red);font-size:12px;font-weight:600;">15-25%+ annual return</div>
+        </div>
+    </div>
+    <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:13px;color:var(--text-secondary);">Selected: <span id="selected-risk" style="color:var(--accent-green);font-weight:600;">Medium</span></div>
+        <button class="btn btn-primary" onclick="getAIInvestment()"><i class="fas fa-sparkles"></i> Get AI Investment Advice</button>
+    </div>
+</div>
+
+<!-- Investment Landscape (Static info) -->
+<div class="grid-3" style="margin-bottom:24px;">
+    <div class="card">
+        <div style="font-size:20px;margin-bottom:10px;">🏦</div>
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:8px;">Fixed Income</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">Deposito, ORI, SBN, Sukuk Negara. Government-backed, guaranteed returns.</div>
+        <div class="badge badge-green" style="margin-top:12px;">Low Risk</div>
+    </div>
+    <div class="card">
+        <div style="font-size:20px;margin-bottom:10px;">📊</div>
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:8px;">Reksa Dana</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">Pasar Uang, Pendapatan Tetap, Campuran, Saham. Managed diversification.</div>
+        <div class="badge badge-amber" style="margin-top:12px;">Low–High Risk</div>
+    </div>
+    <div class="card">
+        <div style="font-size:20px;margin-bottom:10px;">📈</div>
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:8px;">Saham IDX</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">IDX30, LQ45 blue chips. Highest potential returns with corresponding risk.</div>
+        <div class="badge badge-red" style="margin-top:12px;">High Risk</div>
+    </div>
+</div>
+
+<!-- AI Advice Output -->
+<div class="card">
+    <div class="card-title"><i class="fas fa-robot"></i> AI Investment Guidance</div>
+    <div id="ai-invest-response">
+        <div style="text-align:center;padding:56px;color:var(--text-muted);font-size:13px;">
+            <i class="fas fa-seedling" style="font-size:44px;opacity:0.2;display:block;margin-bottom:14px;"></i>
+            Select your risk profile and click "Get AI Investment Advice" for personalized recommendations tailored for the Indonesian market
+        </div>
+    </div>
+</div>
+
+<!-- Disclaimer -->
+<div style="margin-top:18px;padding:14px 18px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;font-size:12px;color:var(--text-muted);">
+    <i class="fas fa-triangle-exclamation" style="color:var(--accent-amber);margin-right:6px;"></i>
+    <strong style="color:var(--accent-amber);">Disclaimer:</strong> This is AI-generated guidance for educational purposes only. It is not financial advice. Please consult a certified financial advisor (CFP/QWP) before making investment decisions.
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let selectedRisk = 'Medium';
+let finData = {};
+async function loadData() {
+    finData = await apiCall('/api/get_data');
+    selectedRisk = finData.risk_level || 'Medium';
+    highlightRisk(selectedRisk);
+}
+function selectRisk(risk) {
+    selectedRisk = risk;
+    highlightRisk(risk);
+    apiCall('/api/update_risk','POST',{risk_level:risk});
+    document.getElementById('selected-risk').textContent = risk;
+    showToast(`Risk profile: ${risk}`);
+}
+function highlightRisk(risk) {
+    document.querySelectorAll('.risk-card').forEach(c => {
+        c.style.borderColor = 'var(--border)';
+        c.style.transform = 'none';
+    });
+    const riskMap = {Low:'var(--accent-green)',Medium:'var(--accent-amber)',High:'var(--accent-red)'};
+    const active = document.querySelector(`.risk-card[data-risk="${risk}"]`);
+    if (active) {
+        active.style.borderColor = riskMap[risk];
+        active.style.transform = 'translateY(-4px)';
+        active.style.boxShadow = `0 10px 30px rgba(0,0,0,0.3)`;
+    }
+    document.getElementById('selected-risk').textContent = risk;
+}
+async function getAIInvestment() {
+    const el = document.getElementById('ai-invest-response');
+    el.innerHTML = '<div class="ai-loading" style="padding:32px;">Analyzing your profile and generating investment advice...</div>';
+    try {
+        const r = await apiCall('/api/ai_investment','POST',{risk_level:selectedRisk,income:finData.income});
+        el.innerHTML = `<div class="ai-response">${marked.parse(r.guidance)}</div>`;
+    } catch { el.innerHTML = '<div style="color:var(--accent-red);padding:20px;">AI error. Check Gemini API key.</div>'; }
+}
+loadData();
+</script>
+{% endblock %}
