@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Reports — FundSight{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Financial Reports</h1>
+    <p class="page-sub">Generate, preview, and download your complete financial summary</p>
+</div>
+
+<!-- Summary Stats -->
+<div class="grid-4" style="margin-bottom:24px;" id="report-stats">
+    <div class="stat-card green">
+        <div class="stat-label">Monthly Income</div>
+        <div class="stat-value" id="r-income">—</div>
+    </div>
+    <div class="stat-card red">
+        <div class="stat-label">Total Expenses</div>
+        <div class="stat-value" id="r-expenses">—</div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-label">Net Balance</div>
+        <div class="stat-value" id="r-balance">—</div>
+    </div>
+    <div class="stat-card purple">
+        <div class="stat-label">Savings Rate</div>
+        <div class="stat-value" id="r-rate">—</div>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-bottom:24px;">
+    <!-- Expense table preview -->
+    <div class="card">
+        <div class="card-title"><i class="fas fa-table"></i> Expense Summary</div>
+        <div id="expense-table-preview">
+            <div style="text-align:center;padding:28px;color:var(--text-muted);font-size:13px;">No expense data</div>
+        </div>
+    </div>
+    <!-- Savings + Goal -->
+    <div>
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-title"><i class="fas fa-bullseye"></i> Savings Goal Summary</div>
+            <div id="goal-summary">
+                <div style="color:var(--text-muted);font-size:13px;">No savings goal set</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-chart-pie"></i> Expense Chart Preview</div>
+            <div class="chart-container" id="r-chart" style="min-height:180px;">
+                <div style="color:var(--text-muted);font-size:13px;">Load data first</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Download options -->
+<div class="card">
+    <div class="card-title"><i class="fas fa-download"></i> Download Report</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Your report will include income summary, expense breakdown, savings goal analysis, and 50/30/20 budget evaluation.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <a href="/api/download_report" class="btn btn-primary" download>
+            <i class="fas fa-file-pdf"></i> Download PDF Report
+        </a>
+        <button class="btn btn-secondary" onclick="downloadText()">
+            <i class="fas fa-file-alt"></i> Download Text Summary
+        </button>
+        <button class="btn btn-secondary" onclick="printReport()">
+            <i class="fas fa-print"></i> Print
+        </button>
+    </div>
+</div>
+
+<!-- AI Summary -->
+<div class="card" style="margin-top:24px;">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><i class="fas fa-robot"></i> AI Financial Summary</span>
+        <button class="btn btn-primary btn-sm" onclick="getAISummary()"><i class="fas fa-sparkles"></i> Generate AI Summary</button>
+    </div>
+    <div id="ai-summary">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">
+            <i class="fas fa-file-chart-column" style="font-size:36px;opacity:0.2;display:block;margin-bottom:12px;"></i>
+            Click "Generate AI Summary" to get a comprehensive narrative of your financial health
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let finData = {};
+async function loadData() {
+    finData = await apiCall('/api/get_data');
+    updateStats();
+    updateExpenseTable();
+    updateGoalSummary();
+    if (Object.keys(finData.expenses || {}).length) loadChart();
+}
+function updateStats() {
+    const d = finData;
+    document.getElementById('r-income').textContent = formatRp(d.income || 0);
+    document.getElementById('r-expenses').textContent = formatRp(d.total_expenses || 0);
+    document.getElementById('r-balance').textContent = formatRp(d.remaining || 0);
+    const rate = d.income > 0 ? ((d.remaining / d.income) * 100).toFixed(1) : 0;
+    document.getElementById('r-rate').textContent = `${rate}%`;
+}
+function updateExpenseTable() {
+    const exp = finData.expenses || {};
+    const income = finData.income || 1;
+    const el = document.getElementById('expense-table-preview');
+    if (!Object.keys(exp).length) {
+        el.innerHTML = '<div style="text-align:center;padding:28px;color:var(--text-muted);font-size:13px;">No expense data</div>';
+        return;
+    }
+    const rows = Object.entries(exp).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>`
+        <tr>
+            <td style="padding:10px 8px;font-size:13px;border-bottom:1px solid var(--border);">${cat}</td>
+            <td style="padding:10px 8px;font-family:'Space Mono',monospace;font-size:12px;border-bottom:1px solid var(--border);">${formatRp(amt)}</td>
+            <td style="padding:10px 8px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);">${((amt/income)*100).toFixed(1)}%</td>
+        </tr>`).join('');
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">
+            <th style="text-align:left;padding:8px;font-weight:600;">Category</th>
+            <th style="text-align:left;padding:8px;font-weight:600;">Amount</th>
+            <th style="text-align:left;padding:8px;font-weight:600;">% Income</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+            <td style="padding:10px 8px;font-weight:700;font-size:13px;">Total</td>
+            <td style="padding:10px 8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent-red);">${formatRp(finData.total_expenses || 0)}</td>
+            <td></td>
+        </tr></tfoot>
+    </table>`;
+}
+function updateGoalSummary() {
+    const sg = finData.savings_goal || {};
+    const el = document.getElementById('goal-summary');
+    if (!sg.amount) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No savings goal set — <a href="/savings" style="color:var(--accent-green);">Set one here</a></div>';
+        return;
+    }
+    const monthly = sg.amount / sg.timeline_months;
+    el.innerHTML = `
+        <div style="display:grid;gap:10px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text-muted);">Goal</span><span style="font-weight:600;">${sg.name}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text-muted);">Target</span><span style="font-family:'Space Mono',monospace;">${formatRp(sg.amount)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text-muted);">Timeline</span><span>${sg.timeline_months} months</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text-muted);">Monthly Required</span><span style="font-family:'Space Mono',monospace;color:var(--accent-green);">${formatRp(monthly)}</span></div>
+        </div>`;
+}
+async function loadChart() {
+    const el = document.getElementById('r-chart');
+    el.innerHTML = '<div class="ai-loading">Loading...</div>';
+    try {
+        const r = await apiCall('/api/chart/expense_pie');
+        el.innerHTML = r.image ? `<img src="data:image/png;base64,${r.image}" style="max-width:100%;">` :
+            `<div style="color:var(--text-muted);font-size:13px;">${r.error}</div>`;
+    } catch {}
+}
+async function getAISummary() {
+    const el = document.getElementById('ai-summary');
+    el.innerHTML = '<div class="ai-loading" style="padding:24px;">Generating comprehensive financial summary...</div>';
+    try {
+        const r = await apiCall('/api/ai_budget','POST',{income:finData.income,expenses:finData.expenses});
+        el.innerHTML = `<div class="ai-response">${marked.parse(r.advice)}</div>`;
+    } catch { el.innerHTML = '<div style="color:var(--accent-red);padding:20px;">AI error</div>'; }
+}
+function downloadText() {
+    const d = finData;
+    const lines = [
+        'FUNDSIGHT FINANCIAL REPORT',
+        '='.repeat(40),
+        `Date: ${new Date().toLocaleDateString('id-ID')}`,
+        '',
+        'INCOME & EXPENSES',
+        '-'.repeat(30),
+        `Monthly Income: ${formatRp(d.income || 0)}`,
+        `Total Expenses: ${formatRp(d.total_expenses || 0)}`,
+        `Net Balance: ${formatRp(d.remaining || 0)}`,
+        `Savings Rate: ${d.income > 0 ? ((d.remaining/d.income)*100).toFixed(1) : 0}%`,
+        '',
+        'EXPENSE BREAKDOWN',
+        '-'.repeat(30),
+        ...Object.entries(d.expenses || {}).map(([c,a]) => `${c}: ${formatRp(a)}`),
+        '',
+        'SAVINGS GOAL',
+        '-'.repeat(30),
+        `Goal: ${d.savings_goal?.name || 'Not set'}`,
+        `Target: ${formatRp(d.savings_goal?.amount || 0)}`,
+        `Timeline: ${d.savings_goal?.timeline_months || 0} months`,
+    ];
+    const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `FundSight_Report_${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    showToast('Text report downloaded!');
+}
+function printReport() { window.print(); }
+loadData();
+</script>
+{% endblock %}
