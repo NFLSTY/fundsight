@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FundSight — AI Personal Finance</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         :root {
@@ -22,6 +22,9 @@
                               linear-gradient(90deg, rgba(30,45,61,0.4) 1px, transparent 1px);
             background-size: 50px 50px; pointer-events:none; z-index:0;
         }
+        body::-webkit-scrollbar {
+            display: none;
+        }
         .container { max-width:1100px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
         /* Nav */
         nav {
@@ -29,7 +32,7 @@
             display:flex; align-items:center; justify-content:space-between;
         }
         .nav-logo {
-            font-family:'Syne',sans-serif; font-size:22px; font-weight:800;
+            font-family:'Montserrat',sans-serif; font-size:22px; font-weight:800;
             background: linear-gradient(135deg, var(--green), var(--purple));
             background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
         }
@@ -55,7 +58,7 @@
         .hero-badge .dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .hero h1 {
-            font-family:'Syne',sans-serif;
+            font-family:'Montserrat',sans-serif;
             font-size:clamp(42px,6vw,76px); font-weight:800;
             line-height:1.05; letter-spacing:-2px;
             margin-bottom:20px;
@@ -103,7 +106,7 @@
             text-transform:uppercase; letter-spacing:2px; margin-bottom:12px;
         }
         .section-title {
-            font-family:'Syne',sans-serif; font-size:36px; font-weight:800;
+            font-family:'Montserrat',sans-serif; font-size:36px; font-weight:800;
             line-height:1.2; margin-bottom:14px; letter-spacing:-1px;
         }
         .section-sub { font-size:15px; color:var(--muted); max-width:500px; line-height:1.6; }
@@ -127,7 +130,7 @@
         .feature-icon.g { background:rgba(0,212,170,0.15); color:var(--green); }
         .feature-icon.p { background:rgba(124,58,237,0.15); color:var(--purple); }
         .feature-icon.a { background:rgba(245,158,11,0.15); color:var(--amber); }
-        .feature-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; margin-bottom:8px; }
+        .feature-title { font-family:'Montserrat',sans-serif; font-size:16px; font-weight:700; margin-bottom:8px; }
         .feature-desc { font-size:13.5px; color:var(--muted); line-height:1.6; }
         /* Tech stack */
         .tech-section { padding:48px 0; border-top:1px solid var(--border); }
@@ -240,7 +243,7 @@
     <section class="cta-section">
         <div class="cta-box">
             <div class="section-label">Ready to start?</div>
-            <h2 style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;margin-bottom:14px;letter-spacing:-1px;">Take control of your finances today</h2>
+            <h2 style="font-family:'Montserrat',sans-serif;font-size:34px;font-weight:800;margin-bottom:14px;letter-spacing:-1px;">Take control of your finances today</h2>
             <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Enter your income, track expenses, and get AI-powered insights instantly.</p>
             <a href="/dashboard" class="btn-hero btn-primary" style="font-size:15px;">
                 <i class="fas fa-rocket"></i> Launch Dashboard
@@ -248,7 +251,7 @@
         </div>
     </section>
     <footer>
-        <p>FundSight &copy; 2025 — AI-Powered Personal Finance | Built with Python + Flask</p>
+        <p>FundSight &copy; 2026 — AI-Powered Personal Finance | Built with Python + Flask</p>
     </footer>
 </div>
 </body>
