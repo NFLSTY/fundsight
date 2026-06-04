@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}FundSight{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             --bg-primary: #0a0e1a;
@@ -50,10 +49,10 @@
             border-bottom: 1px solid var(--border);
         }
         .logo-text {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Montserrat', sans-serif;
             font-size: 22px; font-weight: 800;
             background: linear-gradient(135deg, var(--accent-green), var(--accent-purple));
-            background-clip:text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; background-clip: text;  -webkit-text-fill-color: transparent;
             letter-spacing: -0.5px;
         }
         .logo-sub {
@@ -111,10 +110,10 @@
             margin-bottom: 28px;
         }
         .page-title {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Montserrat', sans-serif;
             font-size: 28px; font-weight: 800;
             background: linear-gradient(135deg, var(--text-primary) 60%, var(--accent-green));
-            background-clip:text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; background-clip: text;  -webkit-text-fill-color: transparent;
         }
         .page-sub { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
         /* Cards */
@@ -126,7 +125,7 @@
         }
         .card:hover { border-color: var(--border-bright); }
         .card-title {
-            font-family: 'Syne', sans-serif;
+            font-family: 'Montserrat', sans-serif;
             font-size: 14px; font-weight: 700;
             color: var(--text-secondary); text-transform: uppercase;
             letter-spacing: 0.5px; margin-bottom: 16px;
@@ -282,6 +281,54 @@
         .toast.show { transform: translateY(0); opacity: 1; }
         .toast.success { border-color: rgba(0,212,170,0.4); }
         .toast.error { border-color: rgba(239,68,68,0.4); }
+        /* Light theme overrides */
+        body.light {
+            --bg-primary: #f0f4f8;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8fafc;
+            --border: #e2e8f0;
+            --border-bright: #cbd5e1;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --text-muted: #a0aec0;
+        }
+        body.light .sidebar { box-shadow: 2px 0 12px rgba(0,0,0,0.06); }
+        body.light .card { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        body.light .input-field { background: #f8fafc; }
+        body.light .nav-item:hover { background: #f1f5f9; }
+        body.light .nav-item.active { background: linear-gradient(135deg,rgba(0,212,170,0.12),rgba(124,58,237,0.08)); }
+        /* Alert badge on nav */
+        .nav-alert-dot {
+            display: inline-block; width: 7px; height: 7px;
+            border-radius: 50%; background: var(--accent-red);
+            margin-left: auto; flex-shrink: 0;
+        }
+        /* Profile modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 500; display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 28px; width: 340px;
+            transform: translateY(16px); transition: transform 0.2s;
+        }
+        .modal-overlay.open .modal-box { transform: translateY(0); }
+        .modal-title {
+            font-family: 'Montserrat', sans-serif; font-size: 17px; font-weight: 700;
+            margin-bottom: 18px;
+        }
+        .profile-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px; border-radius: 8px; cursor: pointer;
+            transition: background 0.15s; margin-bottom: 4px;
+            font-size: 13.5px;
+        }
+        .profile-item:hover { background: var(--bg-secondary); }
+        .profile-item.active-p { background: rgba(0,212,170,0.1); color: var(--accent-green); font-weight: 600; }
         /* Scrollbar */
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -311,6 +358,7 @@
         <div class="nav-label">Overview</div>
         <a href="/dashboard" class="nav-item {% if request.path == '/dashboard' %}active{% endif %}">
             <i class="fas fa-chart-line"></i><span>Dashboard</span>
+            <span class="nav-alert-dot" id="alert-dot" style="display:none;"></span>
         </a>
         <div class="nav-label">Planning</div>
         <a href="/budget" class="nav-item {% if request.path == '/budget' %}active{% endif %}">
@@ -327,17 +375,40 @@
             <i class="fas fa-robot"></i><span>AI Assistant</span>
         </a>
         <a href="/reports" class="nav-item {% if request.path == '/reports' %}active{% endif %}">
-            <i class="fas fa-chart-simple"></i><span>Reports</span>
+            <i class="fas fa-file-lines"></i><span>Reports</span>
         </a>
     </nav>
     <div class="sidebar-footer">
+        <!-- Profile switcher -->
+        <div class="nav-item" style="cursor:pointer;margin-bottom:6px;" onclick="openProfileModal()">
+            <i class="fas fa-user-circle"></i>
+            <span id="profile-btn-label">Default</span>
+            <i class="fas fa-chevron-right" style="margin-left:auto;font-size:10px;opacity:0.5;"></i>
+        </div>
+        <!-- Theme toggle -->
+        <div class="nav-item" style="cursor:pointer;margin-bottom:6px;" onclick="toggleTheme()">
+            <i class="fas fa-moon" id="theme-icon"></i>
+            <span id="theme-label">Dark Mode</span>
+        </div>
         <div class="api-status">
-            <div class="status-dot" id="api-status-dot"></div>
-            <span id="api-status-text">Checking AI...</span>
+            <div class="status-dot"></div>
+            <span>Gemini AI Active</span>
         </div>
     </div>
 </aside>
 
+<!-- Profile Modal -->
+<div class="modal-overlay" id="profile-modal">
+    <div class="modal-box">
+        <div class="modal-title"><i class="fas fa-user-circle" style="color:var(--accent-green);margin-right:8px;"></i>Profiles</div>
+        <div id="profile-list" style="margin-bottom:16px;max-height:220px;overflow-y:auto;"></div>
+        <div style="display:flex;gap:8px;">
+            <input type="text" class="input-field" id="new-profile-input" placeholder="New profile name..." style="flex:1;font-size:13px;">
+            <button class="btn btn-primary btn-sm" onclick="createProfile()"><i class="fas fa-plus"></i></button>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;margin-top:10px;" onclick="closeProfileModal()">Close</button>
+    </div>
+</div>
 <main class="main">
     {% block content %}{% endblock %}
 </main>
@@ -358,32 +429,128 @@ async function apiCall(url, method='GET', body=null) {
 function formatRp(n) {
     return 'Rp ' + Number(n).toLocaleString('id-ID');
 }
-</script>
-{% block scripts %}{% endblock %}
-<script>
-    async function checkApiStatus() {
-        try {
-            const res = await fetch('/api/status');
-            const data = await res.json();
-            const dot = document.getElementById('api-status-dot');
-            const text = document.getElementById('api-status-text');
-            if (data.status === 'ok') {
-                dot.style.background = 'var(--accent-green)';
-                text.textContent = 'Gemini AI Active';
-            } else {
-                dot.style.background = 'var(--accent-red)';
-                text.textContent = 'AI Offline';
-                dot.style.animation = 'none';
-            }
-        } catch (e) {
-            const dot = document.getElementById('api-status-dot');
+
+// ── Theme ──────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+    document.body.classList.toggle('light', theme === 'light');
+    const icon = document.getElementById('theme-icon');
+    const label = document.getElementById('theme-label');
+    if (icon) icon.className = theme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+    if (label) label.textContent = theme === 'light' ? 'Light Mode' : 'Dark Mode';
+    localStorage.setItem('fs_theme', theme);
+}
+async function toggleTheme() {
+    const current = document.body.classList.contains('light') ? 'light' : 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    await apiCall('/api/update_theme', 'POST', { theme: next });
+}
+// Apply saved theme immediately (before any API call to avoid flash)
+(function() {
+    const saved = localStorage.getItem('fs_theme');
+    if (saved) applyTheme(saved);
+})();
+
+// ── Profiles ───────────────────────────────────────────────────────────────
+async function loadSidebarState() {
+    try {
+        const d = await apiCall('/api/get_data');
+        // Profile label
+        const active = d.active_profile || 'Default';
+        const pl = document.getElementById('active-profile-label');
+        const pb = document.getElementById('profile-btn-label');
+        if (pl) pl.textContent = active;
+        if (pb) pb.textContent = active;
+        // Alert dot
+        const dot = document.getElementById('alert-dot');
+        if (dot) dot.style.display = (d.alerts && d.alerts.length > 0) ? 'inline-block' : 'none';
+        // Sync theme from server if no local override
+        if (!localStorage.getItem('fs_theme') && d.theme) applyTheme(d.theme);
+    } catch {}
+}
+function openProfileModal() {
+    document.getElementById('profile-modal').classList.add('open');
+    renderProfiles();
+}
+function closeProfileModal() {
+    document.getElementById('profile-modal').classList.remove('open');
+}
+document.addEventListener('click', e => {
+    if (e.target === document.getElementById('profile-modal')) closeProfileModal();
+});
+async function renderProfiles() {
+    const list = document.getElementById('profile-list');
+    const r = await apiCall('/api/profiles');
+    list.innerHTML = r.profiles.map(name => `
+        <div class="profile-item ${name === r.active ? 'active-p' : ''}" onclick="switchProfile('${name}')">
+            <span><i class="fas fa-user" style="margin-right:8px;opacity:0.6;font-size:11px;"></i>${name}</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+                ${name === r.active ? '<span style="font-size:10px;opacity:0.7;">active</span>' : ''}
+                ${name !== 'Default' ? `<button class="btn btn-danger btn-sm" style="padding:2px 7px;font-size:11px;" onclick="event.stopPropagation();deleteProfile('${name}')"><i class="fas fa-times"></i></button>` : ''}
+            </div>
+        </div>`).join('');
+}
+async function switchProfile(name) {
+    await apiCall('/api/profiles/switch', 'POST', { name });
+    closeProfileModal();
+    showToast(`Switched to "${name}"`);
+    loadSidebarState();
+    location.reload();
+}
+async function createProfile() {
+    const input = document.getElementById('new-profile-input');
+    const name = input.value.trim();
+    if (!name) return showToast('Enter a profile name', 'error');
+    await apiCall('/api/profiles/switch', 'POST', { name });
+    input.value = '';
+    showToast(`Profile "${name}" created & activated`);
+    loadSidebarState();
+    renderProfiles();
+    setTimeout(() => location.reload(), 600);
+}
+async function deleteProfile(name) {
+    if (!confirm(`Delete profile "${name}"?`)) return;
+    await apiCall('/api/profiles/delete', 'POST', { name });
+    showToast(`"${name}" deleted`);
+    loadSidebarState();
+    renderProfiles();
+}
+async function checkApiStatus() {
+    try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const dot = document.getElementById('api-status-dot');
+        const text = document.getElementById('api-status-text');
+        if (data.status === 'ok') {
+            dot.style.background = 'var(--accent-green)';
+            text.textContent = 'Gemini AI Active';
+        } else {
             dot.style.background = 'var(--accent-red)';
-            document.getElementById('api-status-text').textContent = 'Error';
+            text.textContent = 'AI Offline';
             dot.style.animation = 'none';
         }
+    } catch (e) {
+        // Wrap the logic to ensure the DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const dot = document.getElementById('api-status-dot');
+            const statusText = document.getElementById('api-status-text');
+
+            if (dot && statusText) {
+                dot.style.background = 'var(--accent-red)';
+                statusText.textContent = 'Error';
+                dot.style.animation = 'none';
+            } else {
+                // This will now only fire if the IDs are actually missing from the HTML
+                console.error('API status elements not found in the DOM.');
+            }
+        });
     }
-    // Run status check on load
-    window.addEventListener('DOMContentLoaded', checkApiStatus);
+}
+loadSidebarState();
+// Run status check on load
+window.addEventListener('DOMContentLoaded', checkApiStatus);
 </script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>
