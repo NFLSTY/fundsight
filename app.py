@@ -10,15 +10,15 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.linear_model import LinearRegression
-    
-
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from google import genai
+from google.genai import types
 from dotenv import load_dotenv
+from flask import Response, stream_with_context
 from flask_session import Session
 
 app = Flask(__name__)
@@ -27,22 +27,99 @@ app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_PERMANENT"] = False
 Session(app)
 
-# Configure Gemini
+# ─── Gemini API Configuration ─────────────────────────────────────────────────
+
 load_dotenv() 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
 GEMINI_MODEL = "gemini-3.5-flash"
 
+# Shared base config — used as fallback and for general chat
+_base_config = types.GenerateContentConfig(
+    temperature=0.5,
+    max_output_tokens=5000,
+    top_p=0.85,
+    top_k=40,
+    candidate_count=1,
+)
+ 
+# Structured outputs: budget analysis, insights, investment — needs precision
+_structured_config = types.GenerateContentConfig(
+    temperature=0.3,
+    max_output_tokens=5000,
+    top_p=0.85,
+    top_k=40,
+    candidate_count=1,
+)
+ 
+# Quick insights — short output, very low temperature for consistency
+_insights_config = types.GenerateContentConfig(
+    temperature=0.2,
+    max_output_tokens=2500,
+    top_p=0.85,
+    top_k=40,
+    candidate_count=1,
+)
+ 
+# Savings plan — slightly more creative to suggest varied strategies
+_savings_config = types.GenerateContentConfig(
+    temperature=0.4,
+    max_output_tokens=5000,
+    top_p=0.90,
+    top_k=40,
+    candidate_count=1,
+)
+
+# ─── JSON File Persistence ────────────────────────────────────────────────────
+
+DATA_FILE = "fundsight_data.json"
+
+DEFAULT_PROFILE = {
+    "income": 0,
+    "expenses": {},
+    "savings_goal": {"name": "", "amount": 0, "timeline_months": 0},
+    "risk_level": "Medium",
+    "chat_history": [],
+    "budget_alerts": {},
+    "historical_expenses": [],
+    "theme": "dark"
+}
+
+def load_all_data():
+    """Load the full JSON file. Returns dict with profile keys."""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {"active_profile": "Default", "profiles": {"Default": dict(DEFAULT_PROFILE)}}
+
+def save_all_data(data):
+    """Persist full data to JSON file."""
+    try:
+        with open(DATA_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except IOError as e:
+        print(f"[FundSight] Warning: could not save data — {e}")
+
+_store = load_all_data()
+
+def get_profile(name=None):
+    """Return the active profile dict (mutable reference)."""
+    name = name or _store.get("active_profile", "Default")
+    if name not in _store["profiles"]:
+        _store["profiles"][name] = dict(DEFAULT_PROFILE)
+    for k, v in DEFAULT_PROFILE.items():
+        _store["profiles"][name].setdefault(k, v if not isinstance(v, dict) else dict(v))
+    return _store["profiles"][name]
+
+def save():
+    save_all_data(_store)
+
 def get_finance_data():
-    if "finance_data" not in session:
-        session["finance_data"] = {
-            "income": 0,
-            "expenses": {},
-            "savings_goal": {"name": "", "amount": 0, "timeline_months": 0},
-            "risk_level": "Medium",
-            "chat_history": [],
-            "historical_expenses": [3000000, 3100000, 2950000, 3300000, 3200000, 3400000] # dummy data
-        }
+    # Force sync with the JSON global store.
+    session["finance_data"] = get_profile()
     return session["finance_data"]
 
 @app.after_request
@@ -54,17 +131,115 @@ def after_request(response):
 def save_finance_data(data):
     session["finance_data"] = data
     session.modified = True
+    
+    # Save to JSON
+    active_prof = _store.get("active_profile", "Default")
+    _store["profiles"][active_prof] = data
+    save()
 
-def get_ai_response(prompt, system_context="", stream=False):
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+ 
+class AIError(Exception):
+    """Raised when the AI response is unusable."""
+    pass
+ 
+def get_ai_response(prompt, system_context="", config=None):
+    """
+    Call Gemini and return the response text.
+ 
+    Error handling layers:
+      1. Empty prompt / missing income guard — caught before API call (callers)
+      2. API key not configured — caught by genai.configure; raises google.auth errors
+      3. Network / timeout — caught as generic Exception, returns user-friendly message
+      4. Empty or blocked response — checked via response.candidates; raises AIError
+      5. Prompt feedback (safety block) — checked via response.prompt_feedback
+      6. Partial response (finish_reason != STOP) — logged, still returned if text exists
+    """
+    if config is None:
+        config = _base_config
+ 
+    if not prompt or not prompt.strip():
+        return "⚠ No prompt provided. Please enter a question or add financial data first."
+ 
+    full_prompt = f"{system_context}\n\n{prompt}" if system_context else prompt
+ 
     try:
-        full_prompt = f"{system_context}\n\n{prompt}" if system_context else prompt
         response = client.models.generate_content(
             model=GEMINI_MODEL,
-            contents=full_prompt
+            contents=full_prompt,
+            config=config,
         )
-        return response.text
+ 
+        # Layer: safety / prompt feedback block
+        if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+            block_reason = getattr(response.prompt_feedback, 'block_reason', None)
+            if block_reason:
+                return (f"⚠ Request blocked by Gemini safety filter: {block_reason}. "
+                        "Please rephrase your question.")
+ 
+        # Layer: no candidates returned
+        if not response.candidates:
+            raise AIError("Gemini returned no candidates. The prompt may have been filtered.")
+ 
+        candidate = response.candidates[0]
+ 
+        # Layer: check finish reason
+        finish_reason = getattr(candidate, 'finish_reason', None)
+        finish_name = str(finish_reason) if finish_reason else "UNKNOWN"
+        if "SAFETY" in finish_name:
+            return ("⚠ Response blocked for safety reasons. "
+                    "Try rephrasing your financial question.")
+        if "MAX_TOKENS" in finish_name:
+            # Still return what we got, but append a note
+            text = response.text.strip() if response.text else ""
+            return text + "\n\n*(Response was cut short — try asking a more specific question.)*"
+ 
+        # Layer: empty text despite no error
+        text = response.text.strip() if response.text else ""
+        if not text:
+            raise AIError("Gemini returned an empty response.")
+ 
+        return text
+ 
+    except AIError as e:
+        return f"⚠ AI response error: {e}"
     except Exception as e:
-        return f"AI service error: {str(e)}. Please check your Gemini API key."
+        err = str(e)
+        # Provide specific, actionable messages for common failure modes
+        if "API_KEY" in err.upper() or "api key" in err.lower():
+            return ("⚠ Gemini API key is invalid or not set. "
+                    "Set the GEMINI_API_KEY environment variable and restart the app.")
+        if "quota" in err.lower() or "429" in err:
+            return ("⚠ Gemini API quota exceeded. "
+                    "Please wait a moment and try again, or check your Google AI Studio quota.")
+        if "timeout" in err.lower() or "deadline" in err.lower():
+            return ("⚠ Request timed out. "
+                    "Check your internet connection and try again.")
+        if "network" in err.lower() or "connection" in err.lower():
+            return ("⚠ Network error reaching Gemini API. "
+                    "Check your internet connection.")
+        # Fallback: surface the raw error but keep it readable
+        return f"⚠ Unexpected AI error: {err}"
+
+def check_budget_alerts(profile):
+    """Return list of triggered alerts: {category, amount, threshold_pct, actual_pct}"""
+    income = profile.get('income', 0)
+    if income <= 0:
+        return []
+    alerts = profile.get('budget_alerts', {})
+    triggered = []
+    for cat, amount in profile.get('expenses', {}).items():
+        if cat in alerts:
+            actual_pct = (amount / income) * 100
+            threshold = alerts[cat]
+            if actual_pct > threshold:
+                triggered.append({
+                    "category": cat,
+                    "amount": amount,
+                    "threshold_pct": threshold,
+                    "actual_pct": round(actual_pct, 1)
+                })
+    return triggered
 
 def generate_chart(chart_type, data, title):
     """Generate charts and return as base64 string."""
@@ -187,6 +362,8 @@ def api_status():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+    
+# ─── Finance API ──────────────────────────────────────────────────────────────
 
 @app.route('/api/update_income', methods=['POST'])
 def update_income():
@@ -203,11 +380,11 @@ def add_expense():
     data = request.json
     category = data.get('category', '').strip()
     amount = float(data.get('amount', 0))
-    finance_data = get_finance_data()
     if category and amount > 0:
         finance_data['expenses'][category] = finance_data['expenses'].get(category, 0) + amount
     save_finance_data(finance_data)
-    return jsonify({"success": True, "expenses": finance_data['expenses']})
+    alerts = check_budget_alerts(finance_data)
+    return jsonify({"success": True, "expenses": finance_data['expenses'], "alerts": alerts})
 
 @app.route('/api/remove_expense', methods=['POST'])
 def remove_expense():
@@ -244,10 +421,12 @@ def upload_csv():
                 if len(preview_data) < 5:
                     preview_data.append({"category": cat, "amount": amt})
         save_finance_data(finance_data)
+        alerts = check_budget_alerts(finance_data)
         return jsonify({
             "success": True, 
             "added": added, 
             "expenses": finance_data['expenses'],
+            "alerts": alerts,
             "preview": preview_data
         })
     except Exception as e:
@@ -286,21 +465,102 @@ def update_risk():
     save_finance_data(finance_data)
     return jsonify({"success": True})
 
+@app.route('/api/update_theme', methods=['POST'])
+def update_theme():
+    finance_data = get_finance_data()
+    theme = request.json.get('theme', 'dark')
+    finance_data['theme'] = theme
+    save()
+    return jsonify({"success": True, "theme": theme})
+
 @app.route('/api/get_data')
 def get_data():
-    finance_data = get_finance_data()
     finance_data = get_finance_data()
     total_expenses = sum(finance_data['expenses'].values())
     remaining = finance_data['income'] - total_expenses
     savings_goal = finance_data['savings_goal']
     monthly_needed = (savings_goal['amount'] / savings_goal['timeline_months']
                       if savings_goal['timeline_months'] > 0 else 0)
+    alerts = check_budget_alerts(finance_data)
     return jsonify({
         **finance_data,
         "total_expenses": total_expenses,
         "remaining": remaining,
-        "monthly_savings_needed": monthly_needed
+        "monthly_savings_needed": monthly_needed,
+        "active_profile": _store.get("active_profile", "Default"),
+        "alerts": alerts
     })
+
+# ─── Profile API ──────────────────────────────────────────────────────────────
+
+@app.route('/api/profiles', methods=['GET'])
+def list_profiles():
+    return jsonify({
+        "profiles": list(_store["profiles"].keys()),
+        "active": _store.get("active_profile", "Default")
+    })
+
+@app.route('/api/profiles/switch', methods=['POST'])
+def switch_profile():
+    name = request.json.get('name', '').strip()
+    if not name:
+        return jsonify({"error": "Profile name required"}), 400
+    if name not in _store["profiles"]:
+        _store["profiles"][name] = dict(DEFAULT_PROFILE)
+    _store["active_profile"] = name
+    session["finance_data"] = get_profile(name)
+    session.modified = True
+    save()
+    return jsonify({"success": True, "active": name})
+
+@app.route('/api/profiles/delete', methods=['POST'])
+def delete_profile():
+    name = request.json.get('name', '').strip()
+    if name == "Default":
+        return jsonify({"error": "Cannot delete Default profile"}), 400
+    if name in _store["profiles"]:
+        del _store["profiles"][name]
+    if _store.get("active_profile") == name:
+        _store["active_profile"] = "Default"
+        session["finance_data"] = get_profile("Default")
+        session.modified = True
+    save()
+    return jsonify({"success": True})
+
+# ─── Budget Alerts API ────────────────────────────────────────────────────────
+ 
+@app.route('/api/alerts', methods=['GET'])
+def get_alerts():
+    finance_data = get_finance_data()
+    return jsonify({
+        "budget_alerts": finance_data.get('budget_alerts', {}),
+        "triggered": check_budget_alerts(finance_data)
+    })
+ 
+@app.route('/api/alerts/set', methods=['POST'])
+def set_alert():
+    finance_data = get_finance_data()
+    data = request.json
+    category = data.get('category', '').strip()
+    try:
+        threshold = float(data.get('threshold_pct', 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid threshold value"}), 400
+    if not category or threshold <= 0:
+        return jsonify({"error": "Category and threshold required"}), 400
+    finance_data.setdefault('budget_alerts', {})[category] = threshold
+    save_finance_data(finance_data)
+    return jsonify({"success": True, "budget_alerts": finance_data['budget_alerts']})
+ 
+@app.route('/api/alerts/remove', methods=['POST'])
+def remove_alert():
+    finance_data = get_finance_data()
+    category = request.json.get('category', '')
+    finance_data.setdefault('budget_alerts', {}).pop(category, None)
+    save_finance_data(finance_data)
+    return jsonify({"success": True, "budget_alerts": finance_data['budget_alerts']})
+
+# ─── Chart API ────────────────────────────────────────────────────────────────
 
 @app.route('/api/chart/<chart_type>')
 def get_chart(chart_type):
@@ -339,6 +599,8 @@ def get_chart(chart_type):
         return jsonify({"image": img})
 
     return jsonify({"error": "Unknown chart type"}), 400
+
+# ─── AI Endpoints ─────────────────────────────────────────────────────────────
 
 @app.route('/api/ai_budget', methods=['POST'])
 def ai_budget():
@@ -381,7 +643,11 @@ Your Needs are at 60% (above the 50% target). You are on track for Wants.
 
 Keep it concise, practical, and motivating. Format clearly with headers."""
     
-    response = get_ai_response(prompt)
+    # Validate inputs before hitting the API
+    if income <= 0:
+        return jsonify({"advice": "⚠ Please set your monthly income before requesting budget analysis."}), 400
+    
+    response = get_ai_response(prompt, config=_structured_config)
     return jsonify({"advice": response})
 
 @app.route('/api/ai_savings', methods=['POST'])
@@ -419,7 +685,13 @@ Based on your current available income, you can achieve this within 10 months if
 
 Be encouraging and specific with Rupiah amounts."""
     
-    response = get_ai_response(prompt)
+    # Validate
+    if not goal.get('name') or goal.get('amount', 0) <= 0:
+        return jsonify({"plan": "⚠ Please set a savings goal (name + amount) before generating a plan."}), 400
+    if goal.get('timeline_months', 0) <= 0:
+        return jsonify({"plan": "⚠ Please set a timeline (in months) for your savings goal."}), 400
+    
+    response = get_ai_response(prompt, config=_savings_config)
     return jsonify({"plan": response})
 
 @app.route('/api/ai_investment', methods=['POST'])
@@ -447,7 +719,10 @@ Provide investment guidance for an Indonesian investor:
 
 Be specific to Indonesian market context. Include product names where relevant."""
     
-    response = get_ai_response(prompt)
+    if income <= 0:
+        return jsonify({"guidance": "⚠ Please set your monthly income before requesting investment guidance."}), 400
+    
+    response = get_ai_response(prompt, config=_structured_config)
     return jsonify({"guidance": response})
 
 @app.route('/api/chat_stream', methods=['POST'])
@@ -485,26 +760,37 @@ Recent conversation:
     finance_data['chat_history'].append({"role": "user", "content": user_message})
     save_finance_data(finance_data)
     
-    def generate():
-        full_prompt = f"{system_prompt}\n\n{user_message}"
-        response = client.models.generate_content_stream(
-            model=GEMINI_MODEL,
-            contents=full_prompt
-        )
-        full_response = ""
-        for chunk in response:
-            text = chunk.text
-            full_response += text
-            yield text
-        
-        fd = session.get('finance_data', {})
-        fd['chat_history'].append({"role": "assistant", "content": full_response})
-        if len(fd['chat_history']) > 20:
-            fd['chat_history'] = fd['chat_history'][-20:]
-        session['finance_data'] = fd
-        session.modified = True
+    def generate(config=None):
+            if config is None:
+                config = _base_config
 
-    from flask import Response, stream_with_context
+            full_prompt = f"{system_prompt}\n\n{user_message}"
+            
+            try:
+                response = client.models.generate_content_stream(
+                    model=GEMINI_MODEL,
+                    contents=full_prompt,
+                    config=config,
+                )
+                
+                full_response = ""
+                for chunk in response:
+                    text = chunk.text or ""
+                    if text:
+                        full_response += text
+                        yield text
+                
+                # Append directly to the outer-scope finance_data
+                finance_data['chat_history'].append({"role": "assistant", "content": full_response})
+                if len(finance_data['chat_history']) > 20:
+                    finance_data['chat_history'] = finance_data['chat_history'][-20:]
+                    
+                # Save the updated history securely to JSON
+                save_finance_data(finance_data)
+                
+            except Exception as e:
+                yield f"\n\n⚠ Sorry, I encountered an error: {str(e)}"
+
     return Response(stream_with_context(generate()), mimetype='text/plain')
 
 @app.route('/api/chat', methods=['POST'])
@@ -540,7 +826,12 @@ Do not proactively summarize the user's financial status in every response unles
 Recent conversation:
 {history_context}"""
     
-    response = get_ai_response(user_message, system_prompt)
+    if not user_message or not user_message.strip():
+        return jsonify({"response": "⚠ Please type a message before sending."}), 400
+    if len(user_message) > 2000:
+        return jsonify({"response": "⚠ Message too long (max 2000 characters). Please shorten your question."}), 400
+    
+    response = get_ai_response(user_message, system_prompt, config=_base_config)
     
     finance_data['chat_history'].append({"role": "user", "content": user_message})
     finance_data['chat_history'].append({"role": "assistant", "content": response})
@@ -575,10 +866,12 @@ Give exactly 4 insights in this format:
 💡 OPPORTUNITY: [best savings opportunity]
 📈 NEXT STEP: [single most impactful action to take this month]
 
-Keep each insight to 1-2 sentences max."""
+Keep each insight to 1-3 sentences max."""
     
-    response = get_ai_response(prompt)
+    response = get_ai_response(prompt, config=_insights_config)
     return jsonify({"insights": response})
+
+# ─── Other Tools ──────────────────────────────────────────────────────────────
 
 @app.route('/api/download_report')
 def download_report():
@@ -595,6 +888,7 @@ def download_report():
     body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, spaceAfter=3)
 
     story.append(Paragraph("FundSight Financial Report", title_style))
+    story.append(Spacer(1, 0.2*inch))
     story.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%B %d, %Y')}", body_style))
     story.append(Spacer(1, 0.2*inch))
 
@@ -642,6 +936,26 @@ def download_report():
         story.append(t2)
         story.append(Spacer(1, 0.2*inch))
 
+    # Budget alerts section
+    triggered = check_budget_alerts(finance_data)
+    if triggered:
+        story.append(Paragraph("Budget Alert Summary", heading_style))
+        alert_data = [['Category', 'Actual %', 'Threshold %', 'Status']]
+        for a in triggered:
+            alert_data.append([a['category'], f"{a['actual_pct']}%", f"{a['threshold_pct']}%", '⚠ Over Budget'])
+        t3 = Table(alert_data, colWidths=[2 * inch, 1.5 * inch, 1.5 * inch, 1.5 * inch])
+        t3.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ef4444')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#fff5f5'), colors.white]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('PADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(t3)
+        story.append(Spacer(1, 0.2 * inch))
+
     sg = finance_data['savings_goal']
     if sg['amount'] > 0:
         story.append(Paragraph("Savings Goal", heading_style))
@@ -657,39 +971,100 @@ def download_report():
                      download_name=f"FundSight_Report_{datetime.datetime.now().strftime('%Y%m%d')}.pdf",
                      mimetype='application/pdf')
 
+@app.route('/api/clear_chat', methods=['POST'])
+def clear_chat():
+    finance_data = get_finance_data()
+    finance_data['chat_history'] = []
+    save_finance_data(finance_data)
+    return jsonify({"success": True})
+
 @app.route('/api/clear_data', methods=['POST'])
 def clear_data():
-    finance_data = get_finance_data()
     finance_data = get_finance_data()
     finance_data['income'] = 0
     finance_data['expenses'] = {}
     finance_data['savings_goal'] = {"name": "", "amount": 0, "timeline_months": 0}
     finance_data['risk_level'] = "Medium"
-    finance_data['chat_history'] = []
+    finance_data['budget_alerts'] = {}
+    finance_data['historical_expenses'] = []
     save_finance_data(finance_data)
     return jsonify({"success": True})
+
+@app.route('/api/add_history', methods=['POST'])
+def add_history():
+    finance_data = get_finance_data()
+    data = request.json
+    period = data.get('period', '').strip()
+    amount = float(data.get('amount', 0))
+    
+    if period and amount > 0:
+        # Storing as a list of dictionaries: [{"period": "Jan 2026", "amount": 5000000}]
+        finance_data.setdefault('historical_expenses', []).append({
+            "period": period,
+            "amount": amount
+        })
+        save_finance_data(finance_data)
+        
+    return jsonify({"success": True, "history": finance_data.get('historical_expenses', [])})
+
+@app.route('/api/remove_history', methods=['POST'])
+def remove_history():
+    finance_data = get_finance_data()
+    idx = request.json.get('index')
+    
+    hist = finance_data.get('historical_expenses', [])
+    if idx is not None and 0 <= idx < len(hist):
+        hist.pop(idx)
+        finance_data['historical_expenses'] = hist
+        save_finance_data(finance_data)
+        
+    return jsonify({"success": True, "history": finance_data.get('historical_expenses', [])})
 
 @app.route('/api/forecast_expense')
 def forecast_expense():
     finance_data = get_finance_data()
-    hist = finance_data.get('historical_expenses', [])
-    current_total = sum(finance_data['expenses'].values())
-    if current_total > 0:
-        hist = hist + [current_total]
+    hist_records = finance_data.get('historical_expenses', [])
+    current_total = sum(finance_data.get('expenses', {}).values())
     
-    if len(hist) < 2:
-        return jsonify({"forecast": current_total})
+    # Extract historical periods and amounts
+    labels = [r.get('period', f"Past {i+1}") for i, r in enumerate(hist_records)]
+    amounts = [float(r.get('amount', 0)) for r in hist_records]
+    
+    # Always include the current ongoing month if there are expenses
+    if current_total > 0:
+        labels.append('Current')
+        amounts.append(current_total)
+    
+    if not amounts:
+        return jsonify({"error": "No expense data available. Please add expenses first."}), 400
+    
+    # If we only have 1 data point, we can't draw a regression line. 
+    # Return the data safely without forecasting.
+    if len(amounts) < 2:
+        return jsonify({
+            "forecast": amounts[0],
+            "history": amounts,
+            "labels": labels,
+            "needs_more_data": True
+        })
         
-    X = np.array(range(len(hist))).reshape(-1, 1)
-    y = np.array(hist)
+    # Prepare Data for Scikit-Learn
+    X = np.array(range(len(amounts))).reshape(-1, 1)
+    y = np.array(amounts)
     
     reg = LinearRegression().fit(X, y)
-    next_month_idx = np.array([[len(hist)]])
-    prediction = reg.predict(next_month_idx)[0]
+    next_month_idx = np.array([[len(amounts)]])
+    prediction = max(0, float(reg.predict(next_month_idx)[0])) # Prevent negative forecasts
+    
+    # Append the forecast to the end of our arrays so the frontend can draw it
+    labels.append('Forecast')
+    amounts.append(prediction)
     
     return jsonify({
-        "forecast": max(0, float(prediction)),
-        "history": hist
+        "forecast": prediction,
+        "history": amounts,
+        "labels": labels,
+        "needs_more_data": False
     })
 
 
