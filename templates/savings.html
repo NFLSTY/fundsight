@@ -86,7 +86,7 @@
 <div class="card" style="margin-top:24px;">
     <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span><i class="fas fa-robot"></i> AI Monthly Savings Plan</span>
-        <button class="btn btn-primary btn-sm" onclick="getAISavings()"><i class="fas fa-sparkles"></i> Generate Plan</button>
+        <button class="btn btn-primary btn-sm" onclick="getAISavings()"><i class="fas fa-wand-sparkles"></i> Generate Plan</button>
     </div>
     <div id="ai-savings-response">
         <div style="text-align:center;padding:48px;color:var(--text-muted);font-size:13px;">
@@ -133,7 +133,7 @@ function updateGoalStatus() {
     const feasible = available >= monthly_needed;
     document.getElementById('goal-status').innerHTML = `
         <div style="margin-bottom:14px;">
-            <div style="font-size:20px;font-weight:700;font-family:'Syne',sans-serif;">${sg.name}</div>
+            <div style="font-size:20px;font-weight:700;font-family:'Montserrat',sans-serif;">${sg.name}</div>
             <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Target: ${formatRp(sg.amount)} in ${sg.timeline_months} months</div>
         </div>
         <div class="grid-2" style="gap:12px;margin-bottom:14px;">
