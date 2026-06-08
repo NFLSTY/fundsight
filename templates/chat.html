@@ -69,13 +69,16 @@
             <h1 class="page-title">AI Financial Assistant</h1>
             <p class="page-sub">Context-aware AI that knows your finances and gives personalized advice</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="clearChat()"><i class="fas fa-trash"></i> Clear Chat</button>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-secondary btn-sm" onclick="exportChat()"><i class="fas fa-download"></i> Export Chat</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearChat()"><i class="fas fa-trash"></i> Clear Chat</button>
+        </div>
     </div>
 </div>
 
-<div class="card" style="display:flex;flex-direction:column;height:calc(100vh - 220px);">
+<div class="card" style="display:flex;flex-direction:column;height:calc(99.5vh - 150px);">
     <!-- Suggested prompts -->
-    <div class="suggested-prompts" id="suggested-prompts">
+<div class="suggested-prompts" id="suggested-prompts" {% if data.chat_history %}style="display:none;"{% endif %}>
         <div class="prompt-chip" onclick="setPrompt('How much should I save each month?')">💰 How much should I save?</div>
         <div class="prompt-chip" onclick="setPrompt('Am I overspending based on my data?')">📊 Am I overspending?</div>
         <div class="prompt-chip" onclick="setPrompt('Give me 5 tips to reduce my expenses')">✂️ Tips to cut expenses</div>
@@ -85,10 +88,11 @@
     </div>
     <!-- Messages -->
     <div class="messages-area" id="messages">
-        <div class="msg ai">
-            <div class="msg-avatar"><i class="fas fa-robot"></i></div>
-            <div class="msg-bubble">
-Hi! I'm <strong>Fundy</strong>, your personal finance assistant powered by Gemini. 🤖
+        {% if not data.chat_history %}
+            <div class="msg ai">
+                <div class="msg-avatar"><i class="fas fa-robot"></i></div>
+                <div class="msg-bubble">
+Hi! I'm <strong>Fundy</strong>, your personal finance assistant powered by Gemini.
 
 I already have access to your financial data — income, expenses, savings goals, and risk profile — so I can give you <em>personalized</em> advice.
 
@@ -98,8 +102,16 @@ Try asking me:
 • "What investment should I start with?"
 
 What can I help you with today?
+                </div>
             </div>
-        </div>
+        {% else %}
+            {% for msg in data.chat_history %}
+                <div class="msg {{ 'user' if msg.role == 'user' else 'ai' }}">
+                    <div class="msg-avatar"><i class="fas fa-{{ 'user' if msg.role == 'user' else 'robot' }}"></i></div>
+                    <div class="msg-bubble history-bubble">{{ msg.content }}</div>
+                </div>
+            {% endfor %}
+        {% endif %}
     </div>
     <!-- Input -->
     <div class="chat-input-row">
@@ -113,18 +125,36 @@ What can I help you with today?
 {% endblock %}
 {% block scripts %}
 <script>
+window.addEventListener('DOMContentLoaded', () => {
+    // 1. Format past AI messages with Markdown
+    const historyBubbles = document.querySelectorAll('.history-bubble');
+    historyBubbles.forEach(bubble => {
+        if (typeof marked !== 'undefined') {
+            const rawText = bubble.textContent;
+            bubble.innerHTML = typeof marked.parse === 'function' ? marked.parse(rawText) : marked(rawText);
+        }
+    });
+    
+    // 2. Automatically scroll to the bottom of the chat history
+    const area = document.getElementById('messages');
+    area.scrollTop = area.scrollHeight;
+});
+
 let isLoading = false;
 function setPrompt(text) {
     document.getElementById('chat-input').value = text;
     document.getElementById('chat-input').focus();
 }
+
 function autoResize(el) {
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
+
 function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
+
 function addMsg(role, content) {
     const area = document.getElementById('messages');
     const isUser = role === 'user';
@@ -138,6 +168,7 @@ function addMsg(role, content) {
     area.scrollTop = area.scrollHeight;
     return div;
 }
+
 function addTyping() {
     const area = document.getElementById('messages');
     const div = document.createElement('div');
@@ -147,18 +178,30 @@ function addTyping() {
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
 }
+
 async function sendMessage() {
     if (isLoading) return;
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
     if (!msg) return;
-    input.value = ''; input.style.height = 'auto';
-    // Hide suggested prompts after first message
+    
+    input.value = ''; 
+    input.style.height = 'auto';
     document.getElementById('suggested-prompts').style.display = 'none';
+    
     addMsg('user', msg);
     addTyping();
     isLoading = true;
     document.getElementById('send-btn').disabled = true;
+
+    // Safe Markdown parser fallback
+    const parseMD = (text) => {
+        if (typeof marked !== 'undefined') {
+            return typeof marked.parse === 'function' ? marked.parse(text) : marked(text);
+        }
+        return text; // Fallback to raw text if the library is missing
+    };
+
     try {
         const response = await fetch('/api/chat_stream', {
             method: 'POST',
@@ -195,25 +238,62 @@ async function sendMessage() {
             const {done, value} = await reader.read();
             if (done) break;
             
-            fullText += decoder.decode(value);
-            msgBubble.innerHTML = marked.parse(fullText);
+            // {stream: true} prevents cutting characters in half
+            fullText += decoder.decode(value, {stream: true});
+            msgBubble.innerHTML = parseMD(fullText);
             area.scrollTop = area.scrollHeight;
         }
-
-    } catch (e) {
+    } catch (error) {
+        console.error("Chat streaming error:", error);
         document.getElementById('typing-indicator')?.remove();
-        addMsg('ai', 'Sorry, I encountered an error. Please check the Gemini API key configuration.');
+        
+        // Manually build the error message to avoid addMsg() crashing again
+        const area = document.getElementById('messages');
+        const errDiv = document.createElement('div');
+        errDiv.className = 'msg ai';
+        errDiv.innerHTML = `
+            <div class="msg-avatar"><i class="fas fa-robot"></i></div>
+            <div class="msg-bubble" style="color: #ef4444;">Sorry, I encountered a display error. Please check the console.</div>`;
+        area.appendChild(errDiv);
+        area.scrollTop = area.scrollHeight;
+    } finally {
+        // The finally block guarantees your UI will re-enable, even if errors occur
+        isLoading = false;
+        document.getElementById('send-btn').disabled = false;
     }
-    isLoading = false;
-    document.getElementById('send-btn').disabled = false;
 }
+
+function exportChat() {
+    const msgs = document.querySelectorAll('.msg');
+    if (!msgs.length) return showToast('No messages to export', 'error');
+    const lines = ['FundSight AI Chat Export', '='.repeat(40), `Date: ${new Date().toLocaleString('id-ID')}`, ''];
+    msgs.forEach(m => {
+        const role = m.classList.contains('user') ? 'YOU' : 'FUNDSIGHT AI';
+        const text = m.querySelector('.msg-bubble')?.innerText?.trim() || '';
+        if (text) { lines.push(`[${role}]`); lines.push(text); lines.push(''); }
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `FundSight_Chat_${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    if(typeof showToast === 'function') showToast('Chat exported!');
+}
+
 async function clearChat() {
-    if (!confirm('Clear chat history?')) return;
+    if (!confirm('Clear current chat history?')) return;
     document.getElementById('messages').innerHTML = '';
     document.getElementById('suggested-prompts').style.display = 'flex';
-    await apiCall('/api/clear_data','POST');
-    addMsg('ai', 'Chat cleared! How can I help you?');
-    showToast('Chat cleared');
+    try {
+        await fetch('/api/clear_chat', { method: 'POST' });
+    } catch {}
+    document.getElementById('messages').innerHTML = `
+        <div class="msg ai">
+            <div class="msg-avatar"><i class="fas fa-robot"></i></div>
+            <div class="msg-bubble">Chat cleared! How can I help you?</div>
+        </div>
+    `;
+    if(typeof showToast === 'function') showToast('Chat cleared');
 }
 </script>
 {% endblock %}
