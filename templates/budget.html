@@ -3,115 +3,126 @@
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">Budget Planner</h1>
-    <p class="page-sub">AI-powered budget allocation with expense tracking & CSV import</p>
+    <p class="page-sub">Monthly expense tracking & AI-powered budget allocation</p>
 </div>
 
-<div class="grid-2" style="margin-bottom:24px;">
-    <!-- Input Panel -->
-    <div>
-        <div class="card" style="margin-bottom:20px;">
-            <div class="card-title"><i class="fas fa-wallet"></i> Income & Expenses</div>
-            <div class="input-group">
-                <label class="input-label">Monthly Income (Rp)</label>
-                <input type="number" class="input-field" id="b-income" placeholder="e.g. 8000000">
-            </div>
-            <button class="btn btn-primary" onclick="saveIncome()" style="width:100%;justify-content:center;margin-bottom:20px;">
-                <i class="fas fa-save"></i> Save Income
-            </button>
-            <hr style="border:none;border-top:1px solid var(--border);margin-bottom:20px;">
-            <div class="card-title" style="margin-bottom:12px;"><i class="fas fa-plus"></i> Add Expense</div>
-            <div class="input-group">
-                <label class="input-label">Category</label>
-                <select class="input-field" id="b-cat-select" onchange="handleCatSelect(this)">
-                    <option value="">— Choose or type below —</option>
-                    <option>Food & Dining</option>
-                    <option>Transportation</option>
-                    <option>Housing / Rent</option>
-                    <option>Utilities</option>
-                    <option>Healthcare</option>
-                    <option>Entertainment</option>
-                    <option>Education</option>
-                    <option>Shopping</option>
-                    <option>Savings</option>
-                    <option>Other</option>
-                    <option value="custom">Custom...</option>
-                </select>
-            </div>
-            <div class="input-group" id="custom-cat-group" style="display:none;">
-                <label class="input-label">Custom Category</label>
-                <input type="text" class="input-field" id="b-cat-custom" placeholder="Enter category name">
-            </div>
-            <div class="input-group">
-                <label class="input-label">Amount (Rp)</label>
-                <input type="number" class="input-field" id="b-amt" placeholder="e.g. 500000">
-            </div>
-            <button class="btn btn-purple" onclick="addExpense()" style="width:100%;justify-content:center;">
-                <i class="fas fa-plus-circle"></i> Add Expense
-            </button>
-        </div>
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-title"><i class="fas fa-wallet"></i> Monthly Income Setting</div>
+    <div style="display:flex; gap:12px; max-width: 400px;">
+        <input type="number" class="input-field" id="b-income" placeholder="e.g. 8000000" style="flex:1;">
+        <button class="btn btn-primary" onclick="saveIncome()"><i class="fas fa-save"></i> Save</button>
+    </div>
+</div>
 
-        <!-- CSV Upload -->
-        <div class="card">
-            <div class="card-title"><i class="fas fa-file-csv"></i> Import from CSV</div>
-            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">CSV column (mandatory): <code style="background:var(--bg-secondary);padding:2px 6px;border-radius:4px;font-family:'Space Mono',monospace;">category,amount</code></p>
-            <div id="drop-zone" style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all 0.2s;" onclick="document.getElementById('csv-file').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
-                <i class="fas fa-cloud-upload-alt" style="font-size:28px;color:var(--text-muted);margin-bottom:10px;display:block;"></i>
-                <div style="font-size:13px;color:var(--text-muted);">Drop CSV here or click to browse</div>
-            </div>
-            <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this.files[0])">
-            <div id="csv-status" style="margin-top:10px;font-size:12px;color:var(--text-secondary);"></div>
-            
-            <!-- CSV Preview Card (Hidden by default) -->
-            <div id="csv-preview-container" style="display:none; margin-top:16px; background:var(--bg-secondary); border-radius:8px; padding:12px;">
-                <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:8px; display:flex; justify-content:space-between;">
-                    <span><i class="fas fa-eye"></i> Import Preview (First 5)</span>
-                    <i class="fas fa-times" style="cursor:pointer;" onclick="document.getElementById('csv-preview-container').style.display='none'"></i>
-                </div>
-                <div id="csv-preview-list" style="font-size:12px;"></div>
-            </div>
+<div class="card" id="ledger-view">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><i class="fas fa-clipboard"></i> Expense Records</span>
+        <button class="btn btn-primary btn-sm" onclick="openEditor(null)"><i class="fas fa-plus"></i> Add New Month</button>
+    </div>
+    
+    <div id="month-list">
         </div>
+</div>
+
+<div id="editor-view" class="card" style="display: none; border-color: var(--accent-purple);">
+    <div class="card-title" style="display:flex; justify-content:space-between;">
+        <span><i class="fas fa-calendar-alt"></i> Month Record Editor</span>
+        <button class="btn btn-danger btn-sm" onclick="closeEditor()"><i class="fas fa-times"></i> Close</button>
+    </div>
+    
+    <div class="input-group" style="max-width: 300px; margin-bottom: 24px;">
+        <label class="input-label">Select Month & Year</label>
+        <input type="month" class="input-field" id="editor-date">
     </div>
 
-    <!-- Right Panel -->
-    <div>
+    <!-- Grid Cards -->
+    <div class="grid-2" style="margin-bottom:24px;">
+        <!-- Input Panel -->
+        <div>
+            <div style="background:var(--bg-secondary); padding:16px; border-radius:10px; border:1px solid var(--border); margin-bottom:20px;">
+                <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:12px; text-transform:uppercase;">Add Expense Manually</div>
+                <div class="input-group">
+                    <label class="input-label">Category</label>
+                    <select class="input-field" id="b-cat-select" onchange="handleCatSelect(this)">
+                        <option value="">— Choose or type below —</option>
+                        <option>Food & Dining</option>
+                        <option>Transportation</option>
+                        <option>Housing / Rent</option>
+                        <option>Utilities</option>
+                        <option>Healthcare</option>
+                        <option>Entertainment</option>
+                        <option>Education</option>
+                        <option>Shopping</option>
+                        <option>Savings</option>
+                        <option>Other</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                </div>
+                <div class="input-group" id="custom-cat-group" style="display:none;">
+                    <input type="text" class="input-field" id="b-cat-custom" placeholder="Enter custom category">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Amount (Rp)</label>
+                    <input type="number" class="input-field" id="b-amt" placeholder="e.g. 500000">
+                </div>
+                <button class="btn btn-purple" onclick="addManualExpense()" style="width:100%;justify-content:center;">
+                    <i class="fas fa-plus-circle"></i> Add to List
+                </button>
+            </div>
+
+            <div style="background:var(--bg-secondary); padding:16px; border-radius:10px; border:1px solid var(--border);">
+                <div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:12px; text-transform:uppercase;">Import from CSV</div>
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Mandatory columns: <code style="background:var(--bg-card);padding:2px 4px;border-radius:4px;">category,amount</code></p>
+                <div id="drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;" onclick="document.getElementById('csv-file').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:24px;color:var(--text-muted);margin-bottom:8px;display:block;"></i>
+                    <div style="font-size:12px;color:var(--text-muted);">Drop CSV here or click to browse</div>
+                </div>
+                <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this.files[0])">
+                <div id="csv-status" style="margin-top:10px;font-size:11px;color:var(--text-secondary);"></div>
+            </div>
+        </div>
+
         <!-- Current expenses -->
-        <div class="card" style="margin-bottom:20px;">
-            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-                <span><i class="fas fa-list-ul"></i> Expense Breakdown</span>
-                <span id="b-total" class="badge badge-red">Rp 0</span>
+        <div style="background:var(--bg-secondary); padding:16px; border-radius:10px; border:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <span style="font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Expense List</span>
+                <span id="editor-total" class="badge badge-red">Rp 0</span>
             </div>
-            <div id="b-expense-list">
-                <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">No expenses yet</div>
-            </div>
-            <!-- Progress bars -->
-            <div id="b-budget-bars" style="margin-top:16px;"></div>
-        </div>
-
-        <!-- Charts -->
-        <div class="card">
-            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-                <span><i class="fas fa-chart-pie"></i> Visualization</span>
-                <div style="display:flex;gap:6px;">
-                    <button class="btn btn-secondary btn-sm" onclick="loadChart('pie')">Pie</button>
-                    <button class="btn btn-secondary btn-sm" onclick="loadChart('bar')">Bar</button>
-                    <button class="btn btn-secondary btn-sm" onclick="loadChart('budget')">50/30/20</button>
-                </div>
-            </div>
-            <div class="chart-container" id="b-chart">
-                <div style="color:var(--text-muted);font-size:13px;">Select a visualization above</div>
+            <div id="editor-expense-list" style="max-height: 410px; overflow-y: auto; padding-right: 5px;">
+                <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Form is empty. Add data on the left.</div>
             </div>
         </div>
     </div>
+    
+    <!-- Charts -->
+    <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span><i class="fas fa-chart-pie"></i> Visualization</span>
+            <div style="display:flex;gap:6px;">
+                <button class="btn btn-secondary btn-sm" onclick="loadChart('pie')">Pie</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadChart('bar')">Bar</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadChart('budget')">50/30/20</button>
+            </div>
+        </div>
+        <div class="chart-container" id="b-chart">
+            <div style="color:var(--text-muted);font-size:13px;">Select a visualization above</div>
+        </div>
+    </div>
+    
+    <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+    <button class="btn btn-primary" onclick="saveMonthRecord()" style="width:100%;justify-content:center;height:48px;font-size:15px;">
+        <i class="fas fa-save"></i> Save Month Record
+    </button>
 </div>
 
 <!-- AI Budget Analysis -->
-<div class="card">
+<div class="card" style="margin-top:24px;">
     <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span><i class="fas fa-brain"></i> AI Budget Analysis</span>
-        <button class="btn btn-primary btn-sm" onclick="getAIBudget()"><i class="fas fa-sparkles"></i> Analyze with AI</button>
+        <button class="btn btn-primary btn-sm" onclick="getAIBudget()"><i class="fas fa-wand-sparkles"></i> Analyze with AI</button>
     </div>
     <div id="ai-budget-response">
-        <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">
+        <div style="text-align:center;padding:48px;color:var(--text-muted);font-size:13px;">
             <i class="fas fa-brain" style="font-size:36px;opacity:0.2;display:block;margin-bottom:12px;"></i>
             Add your income and expenses, then click "Analyze with AI" for personalized budget recommendations
         </div>
@@ -121,130 +132,271 @@
 {% block scripts %}
 <script>
 let finData = {};
+let currentEditorDate = '';
+let currentEditorExpenses = {};
+
 async function loadData() {
     finData = await apiCall('/api/get_data');
     document.getElementById('b-income').value = finData.income || '';
-    updateExpenseList();
+    renderLedger();
 }
-function handleCatSelect(sel) {
-    const cg = document.getElementById('custom-cat-group');
-    cg.style.display = sel.value === 'custom' ? 'block' : 'none';
-}
-function getCategory() {
-    const sel = document.getElementById('b-cat-select');
-    if (sel.value === 'custom') return document.getElementById('b-cat-custom').value.trim();
-    return sel.value;
-}
-function updateExpenseList() {
-    const exp = finData.expenses || {};
-    const income = finData.income || 0;
-    const total = finData.total_expenses || 0;
-    document.getElementById('b-total').textContent = formatRp(total);
-    const el = document.getElementById('b-expense-list');
-    if (!Object.keys(exp).length) {
-        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">No expenses yet</div>';
-        document.getElementById('b-budget-bars').innerHTML = '';
-        return;
-    }
-    el.innerHTML = Object.entries(exp).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>`
-        <div style="margin-bottom:14px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-                <span style="font-size:13.5px;font-weight:500;">${cat}</span>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-family:'Space Mono',monospace;font-size:12px;">${formatRp(amt)}</span>
-                    <button class="btn btn-danger btn-sm" style="padding:3px 7px;" onclick="removeExpense('${cat}')"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width:${income > 0 ? Math.min((amt/income)*100,100) : 0}%;"></div>
-            </div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${income > 0 ? ((amt/income)*100).toFixed(1)+'% of income' : '-'}</div>
-        </div>`).join('');
-    // 50/30/20 bars
-    if (income > 0) {
-        const needs = income*0.5, savings = income*0.2, wants = income*0.3;
-        document.getElementById('b-budget-bars').innerHTML = `
-            <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
-            <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">50/30/20 Budget Rule</div>
-            ${[['Needs (50%)',needs,'var(--accent-green)'],['Wants (30%)',wants,'var(--accent-purple)'],['Savings (20%)',savings,'var(--accent-amber)']].map(([label,target,color])=>`
-            <div style="margin-bottom:12px;">
-                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
-                    <span style="color:var(--text-secondary);">${label}</span>
-                    <span style="font-family:'Space Mono',monospace;color:${color};">${formatRp(target)}</span>
-                </div>
-                <div class="progress-bar"><div style="height:100%;width:100%;border-radius:3px;background:${color};opacity:0.6;"></div></div>
-            </div>`).join('')}`;
-    }
-}
+
 async function saveIncome() {
     const v = parseFloat(document.getElementById('b-income').value);
     if (!v || v<=0) return showToast('Enter valid income', 'error');
     await apiCall('/api/update_income','POST',{income:v});
     await loadData(); showToast('Income saved!');
 }
-async function addExpense() {
-    const cat = getCategory();
+
+// --- LEDGER VIEW LOGIC ---
+function renderLedger() {
+    const list = document.getElementById('month-list');
+    const records = finData.monthly_records || {};
+    
+    // Sort chronologically (newest first) instead of standard alphabetical
+    const months = Object.keys(records).sort((a, b) => {
+        let dateA = new Date(a.replace('-', ' 1, ')); // e.g., "2026 1, June"
+        let dateB = new Date(b.replace('-', ' 1, '));
+        if (isNaN(dateA)) dateA = new Date(a);
+        if (isNaN(dateB)) dateB = new Date(b);
+        return dateB - dateA;
+    });
+    
+    if (months.length === 0) {
+        list.innerHTML = `
+            <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">
+                <i class="fas fa-folder-open" style="font-size:36px;opacity:0.2;display:block;margin-bottom:12px;"></i>
+                No expenses recorded yet. Add your first expense month to continue
+            </div>`;
+        return;
+    }
+    
+    list.innerHTML = months.map(m => {
+        const total = Object.values(records[m]).reduce((a,b) => a+b, 0);
+        return `
+        <div class="card" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; padding:16px 24px; background:var(--bg-secondary); border-left: 3px solid var(--accent-green);">
+            <div>
+                <div style="font-size:18px; font-weight:700; font-family:'Montserrat',sans-serif; color:var(--accent-green);">${m}</div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">Total Expenses: <span style="font-family:'Space Mono',monospace;">${formatRp(total)}</span></div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-secondary" onclick="openEditor('${m}')"><i class="fas fa-edit"></i> Edit</button>
+                <button class="btn btn-danger" onclick="deleteMonth('${m}')"><i class="fas fa-trash"></i> Delete</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function deleteMonth(date) {
+    if(!confirm(`Delete all records for ${date}?`)) return;
+    await apiCall('/api/delete_month', 'POST', { date });
+    await loadData();
+    showToast('Month deleted');
+}
+
+// --- EDITOR FORM LOGIC ---
+function openEditor(date) {
+    document.getElementById('ledger-view').style.display = 'none';
+    document.getElementById('editor-view').style.display = 'block';
+    document.getElementById('csv-status').textContent = '';
+    
+    if (date) {
+        currentEditorDate = date;
+        currentEditorExpenses = { ...finData.monthly_records[date] };
+        
+        // 1. Direct Match for exactly YYYY-MM
+        if (/^\d{4}-\d{2}$/.test(date)) {
+            document.getElementById('editor-date').value = date;
+        } else {
+            // 2. Try parsing varying localized formats (e.g., 2026-June, 2026-Juni)
+            const parts = date.split('-');
+            let monthIndex = 0;
+            let year = new Date().getFullYear();
+
+            if (parts.length === 2) {
+                year = parts[0];
+                const monthStr = parts[1];
+                
+                // Try English mapping first
+                const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+                monthIndex = months.findIndex(m => m === monthStr.toLowerCase()) + 1;
+                
+                // Try native JS parsing if English mapping fails
+                if (monthIndex === 0) {
+                    const d = new Date(`${monthStr} 1, ${year}`);
+                    if (!isNaN(d)) monthIndex = d.getMonth() + 1;
+                }
+            } else {
+                const d = new Date(date);
+                if (!isNaN(d)) {
+                    year = d.getFullYear();
+                    monthIndex = d.getMonth() + 1;
+                }
+            }
+
+            // Assign final value, defaulting to current month if all parsing methods fail
+            if (monthIndex > 0) {
+                document.getElementById('editor-date').value = `${year}-${String(monthIndex).padStart(2, '0')}`;
+            } else {
+                document.getElementById('editor-date').value = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+            }
+        }
+    } else {
+        const today = new Date();
+        currentEditorDate = null; // Important: Clear the tracked original date for new records
+        currentEditorExpenses = {};
+        document.getElementById('editor-date').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    }
+    renderEditorList();
+}
+
+function closeEditor() {
+    document.getElementById('ledger-view').style.display = 'block';
+    document.getElementById('editor-view').style.display = 'none';
+}
+
+function handleCatSelect(sel) {
+    document.getElementById('custom-cat-group').style.display = sel.value === 'custom' ? 'block' : 'none';
+}
+
+function addManualExpense() {
+    const sel = document.getElementById('b-cat-select').value;
+    const cat = sel === 'custom' ? document.getElementById('b-cat-custom').value.trim() : sel;
     const amt = parseFloat(document.getElementById('b-amt').value);
-    if (!cat || !amt || amt<=0) return showToast('Enter category and amount','error');
-    await apiCall('/api/add_expense','POST',{category:cat,amount:amt});
+    
+    if (!cat || !amt || amt <= 0) return showToast('Enter category and amount', 'error');
+    
+    currentEditorExpenses[cat] = (currentEditorExpenses[cat] || 0) + amt;
     document.getElementById('b-amt').value = '';
-    await loadData(); showToast('Expense added!');
+    renderEditorList();
 }
-async function removeExpense(cat) {
-    await apiCall('/api/remove_expense','POST',{category:cat});
-    await loadData(); showToast('Removed');
+
+function removeEditorExpense(cat) {
+    delete currentEditorExpenses[cat];
+    renderEditorList();
 }
-async function loadChart(type) {
-    const el = document.getElementById('b-chart');
-    el.innerHTML = '<div class="ai-loading">Generating chart...</div>';
-    const apiMap = {pie:'expense_pie',bar:'expense_bar',budget:'budget_allocation'};
-    try {
-        const r = await apiCall(`/api/chart/${apiMap[type]}`);
-        el.innerHTML = r.image ? `<img src="data:image/png;base64,${r.image}" style="max-width:100%;">` :
-            `<div style="color:var(--text-muted);font-size:13px;">${r.error}</div>`;
-    } catch { el.innerHTML = '<div style="color:var(--accent-red);">Error</div>'; }
+
+function renderEditorList() {
+    const list = document.getElementById('editor-expense-list');
+    const income = finData.income || 0;
+    
+    const entries = Object.entries(currentEditorExpenses).sort((a,b)=>b[1]-a[1]);
+    const total = entries.reduce((acc, val) => acc + val[1], 0);
+    document.getElementById('editor-total').textContent = formatRp(total);
+    
+    if (entries.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Form is empty. Add data on the left.</div>';
+        return;
+    }
+    
+    list.innerHTML = entries.map(([cat, amt]) => {
+        const pct = income > 0 ? ((amt/income)*100).toFixed(1) : 0;
+        return `
+        <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                <span style="font-size:13.5px;font-weight:500;">${cat}</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-family:'Space Mono',monospace;font-size:12px;">${formatRp(amt)}</span>
+                    <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px;" onclick="removeEditorExpense('${cat}')"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width:${Math.min(pct, 100)}%;"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${income > 0 ? pct+'% of income' : '-'}</div>
+        </div>`;
+    }).join('');
+    // 50/30/20 bars
+    if (income > 0) {
+        const needs = income*0.5, savings = income*0.2, wants = income*0.3;
+        return `
+        <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">50/30/20 Budget Rule</div>
+        ${[['Needs (50%)',needs,'var(--accent-green)'],['Wants (30%)',wants,'var(--accent-purple)'],['Savings (20%)',savings,'var(--accent-amber)']].map(([label,target,color])=>`
+        <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                <span style="color:var(--text-secondary);">${label}</span>
+                <span style="font-family:'Space Mono',monospace;color:${color};">${formatRp(target)}</span>
+            </div>
+            <div class="progress-bar"><div style="height:100%;width:100%;border-radius:3px;background:${color};opacity:0.6;"></div></div>
+        </div>`).join('')}`;
+    }
 }
+
+async function saveMonthRecord() {
+    const date = document.getElementById('editor-date').value;
+    if (!date) return showToast('Please select a Month & Year', 'error');
+    
+    // Check if the record is completely empty
+    if (Object.keys(currentEditorExpenses).length === 0) {
+        return showToast('Please add at least one expense before saving', 'error');
+    }
+    
+    await apiCall('/api/save_month', 'POST', { 
+        date: date,
+        original_date: currentEditorDate,
+        expenses: currentEditorExpenses 
+    });
+    
+    closeEditor();
+    await loadData();
+    showToast('Month saved successfully!');
+}
+
+// --- CSV LOGIC ---
+function handleDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').style.borderColor = 'var(--accent-green)'; }
+function handleDrop(e) { e.preventDefault(); document.getElementById('drop-zone').style.borderColor = 'var(--border)'; uploadCSV(e.dataTransfer.files[0]); }
+
 async function uploadCSV(file) {
     if (!file) return;
     const status = document.getElementById('csv-status');
-    status.textContent = 'Uploading...';
+    status.textContent = 'Parsing CSV...';
+    
     const form = new FormData();
     form.append('file', file);
-    const r = await fetch('/api/upload_csv', {method:'POST', body:form});
+    
+    const r = await fetch('/api/parse_csv', {method:'POST', body:form});
     const data = await r.json();
+    
     if (data.success) {
-        status.textContent = `✓ Imported ${data.added} expense entries`;
+        status.textContent = `✓ Parsed ${data.added} entries`;
         status.style.color = 'var(--accent-green)';
         
-        // Render preview if available
-        if (data.preview && data.preview.length > 0) {
-            const previewContainer = document.getElementById('csv-preview-container');
-            const previewList = document.getElementById('csv-preview-list');
-            previewList.innerHTML = data.preview.map(item => `
-                <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
-                    <span style="color:var(--text-primary);">${item.category}</span>
-                    <span style="font-family:'Space Mono',monospace; color:var(--text-muted);">Rp ${Number(item.amount).toLocaleString('id-ID')}</span>
-                </div>
-            `).join('');
-            previewContainer.style.display = 'block';
+        // Merge parsed data into the editor
+        for (const [cat, amt] of Object.entries(data.expenses)) {
+            currentEditorExpenses[cat] = (currentEditorExpenses[cat] || 0) + amt;
         }
-        
-        await loadData();
-        showToast(`Imported ${data.added} entries!`);
+        renderEditorList();
+        showToast('CSV Loaded into form!');
     } else {
         status.textContent = `Error: ${data.error}`;
         status.style.color = 'var(--accent-red)';
     }
 }
-function handleDragOver(e) {
-    e.preventDefault();
-    document.getElementById('drop-zone').style.borderColor = 'var(--accent-green)';
+
+// --- CHART LOGIC ---
+async function loadChart(type) {
+    const el = document.getElementById('b-chart');
+    el.innerHTML = '<div class="ai-loading">Generating chart...</div>';
+    const apiMap = {pie:'expense_pie',bar:'expense_bar',budget:'budget_allocation'};
+
+    // Save state temporarily to server so the charting API can read it
+    await apiCall('/api/save_month', 'POST', { date: "TEMP_CHART", expenses: currentEditorExpenses });
+
+    try {
+        // Force the chart API to read our temporary data by replacing the active profile data
+        const r = await apiCall(`/api/chart/${apiMap[type]}`);
+        el.innerHTML = r.image ? `<img src="data:image/png;base64,${r.image}" style="max-width:100%;">` :
+            `<div style="color:var(--text-muted);font-size:13px;">${r.error}</div>`;
+    } catch { 
+        el.innerHTML = '<div style="color:var(--accent-red);font-size:12px;">Error</div>'; 
+    }
+
+    // Cleanup temporary save
+    await apiCall('/api/delete_month', 'POST', { date: "TEMP_CHART" });
 }
-function handleDrop(e) {
-    e.preventDefault();
-    document.getElementById('drop-zone').style.borderColor = 'var(--border)';
-    uploadCSV(e.dataTransfer.files[0]);
-}
+
+// --- AI LOGIC ---
 async function getAIBudget() {
     const el = document.getElementById('ai-budget-response');
     el.innerHTML = '<div class="ai-loading" style="padding:20px;">Analyzing your budget with AI...</div>';
@@ -253,6 +405,7 @@ async function getAIBudget() {
         el.innerHTML = `<div class="ai-response">${marked.parse(r.advice)}</div>`;
     } catch { el.innerHTML = '<div style="color:var(--accent-red);padding:20px;">AI error. Check Gemini API key.</div>'; }
 }
+
 loadData();
 </script>
 {% endblock %}
