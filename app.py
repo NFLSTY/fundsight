@@ -4,11 +4,12 @@ import os
 import csv
 import io
 import base64
-import datetime
+import uuid
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from datetime import datetime
 from sklearn.linear_model import LinearRegression
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -37,7 +38,7 @@ GEMINI_MODEL = "gemini-3.5-flash"
 # Shared base config — used as fallback and for general chat
 _base_config = types.GenerateContentConfig(
     temperature=0.5,
-    max_output_tokens=5000,
+    max_output_tokens=4096,
     top_p=0.85,
     top_k=40,
     candidate_count=1,
@@ -46,7 +47,7 @@ _base_config = types.GenerateContentConfig(
 # Structured outputs: budget analysis, insights, investment — needs precision
 _structured_config = types.GenerateContentConfig(
     temperature=0.3,
-    max_output_tokens=5000,
+    max_output_tokens=4096,
     top_p=0.85,
     top_k=40,
     candidate_count=1,
@@ -55,7 +56,7 @@ _structured_config = types.GenerateContentConfig(
 # Quick insights — short output, very low temperature for consistency
 _insights_config = types.GenerateContentConfig(
     temperature=0.2,
-    max_output_tokens=2500,
+    max_output_tokens=2048,
     top_p=0.85,
     top_k=40,
     candidate_count=1,
@@ -64,7 +65,7 @@ _insights_config = types.GenerateContentConfig(
 # Savings plan — slightly more creative to suggest varied strategies
 _savings_config = types.GenerateContentConfig(
     temperature=0.4,
-    max_output_tokens=5000,
+    max_output_tokens=4096,
     top_p=0.90,
     top_k=40,
     candidate_count=1,
@@ -117,10 +118,51 @@ def get_profile(name=None):
 def save():
     save_all_data(_store)
 
+def sync_monthly_data(finance_data):
+    """Automatically rebuilds current expenses and history from monthly records."""
+    records = finance_data.get('monthly_records', {})
+    
+    # Safeguard if records was accidentally saved as a list
+    if not isinstance(records, dict):
+        records = {}
+        finance_data['monthly_records'] = records
+        
+    def sort_chronologically(date_str):
+        try:
+            return datetime.strptime(date_str, "%Y-%B")
+        except ValueError:
+            try:
+                return datetime.strptime(date_str, "%Y-%m")
+            except ValueError:
+                return datetime.min
+
+    sorted_months = sorted(records.keys(), key=sort_chronologically)
+    
+    # Update history for the Dashboard ML Forecast
+    hist = []
+    for m in sorted_months:
+        hist.append({"period": m, "amount": sum(records[m].values())})
+    finance_data['historical_expenses'] = hist
+    
+    # Set the most recent month as 'current expenses' for the Dashboard pie chart
+    if sorted_months:
+        finance_data['expenses'] = records[sorted_months[-1]]
+    else:
+        finance_data['expenses'] = {}
+
 def get_finance_data():
-    # Force sync with the JSON global store.
     session["finance_data"] = get_profile()
-    return session["finance_data"]
+    fd = session["finance_data"]
+    
+    # Safe migration: if old un-grouped expenses exist, wrap them in the current month
+    if 'monthly_records' not in fd:
+        fd['monthly_records'] = {}
+        if fd.get('expenses'):
+            curr_month = datetime.datetime.now().strftime('%Y-%m')
+            fd['monthly_records'][curr_month] = fd['expenses']
+    
+    sync_monthly_data(fd)
+    return fd
 
 @app.after_request
 def after_request(response):
@@ -320,6 +362,44 @@ def generate_chart(chart_type, data, title):
     plt.close()
     return img_base64
 
+def sync_expense_data(finance_data):
+    """Automatically rebuilds category totals and historical trends from the CRUD ledger."""
+    records = finance_data.get('expense_records', [])
+    
+    # 1. Sync Categories (Sums across records for the pie charts & AI insights)
+    exp_dict = {}
+    for r in records:
+        cat = r.get('category', 'Other')
+        exp_dict[cat] = exp_dict.get(cat, 0) + r.get('amount', 0)
+    finance_data['expenses'] = exp_dict
+
+    # 2. Sync History (Groups by Date for the ML Forecast)
+    hist_dict = {}
+    for r in records:
+        d = r.get('date', datetime.now().strftime('%Y-%m'))
+        hist_dict[d] = hist_dict.get(d, 0) + r.get('amount', 0)
+    
+    # Sort chronologically
+    finance_data['historical_expenses'] = [
+        {"period": k, "amount": v} for k, v in sorted(hist_dict.items())
+    ]
+
+def check_and_migrate(finance_data):
+    """Migrates old legacy data to the new CRUD format so the app doesn't crash."""
+    if not finance_data.get('expense_records') and finance_data.get('expenses'):
+        records = []
+        curr_date = datetime.now().strftime('%Y-%m')
+        for cat, amt in finance_data.get('expenses', {}).items():
+            records.append({
+                "id": str(uuid.uuid4()),
+                "date": curr_date,
+                "category": cat,
+                "amount": amt
+            })
+        finance_data['expense_records'] = records
+        sync_expense_data(finance_data)
+        save_finance_data(finance_data)
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -374,63 +454,103 @@ def update_income():
     save_finance_data(finance_data)
     return jsonify({"success": True, "income": finance_data['income']})
 
-@app.route('/api/add_expense', methods=['POST'])
-def add_expense():
+@app.route('/api/save_month', methods=['POST'])
+def save_month():
     finance_data = get_finance_data()
     data = request.json
-    category = data.get('category', '').strip()
-    amount = float(data.get('amount', 0))
-    if category and amount > 0:
-        finance_data['expenses'][category] = finance_data['expenses'].get(category, 0) + amount
-    save_finance_data(finance_data)
-    alerts = check_budget_alerts(finance_data)
-    return jsonify({"success": True, "expenses": finance_data['expenses'], "alerts": alerts})
+    raw_date = data.get('date') # Expects e.g. "2026-06"
+    original_date = data.get('original_date')
+    expenses = data.get('expenses', {})
+    
+    if raw_date:
+        try:
+            # 1. Parse the incoming YYYY-MM string
+            parsed_date = datetime.strptime(raw_date, "%Y-%m")
+            
+            # 2. Format it to YYYY-MonthName (e.g., "2026-June")
+            month_date = parsed_date.strftime("%Y %B")
+        except ValueError:
+            # Fallback if it's not a standard date format (e.g. 'TEMP_CHART')
+            month_date = raw_date
+            
+        # 3. Save the data using the new key format
+        records = finance_data.setdefault('monthly_records', {})
 
-@app.route('/api/remove_expense', methods=['POST'])
-def remove_expense():
-    finance_data = get_finance_data()
-    data = request.json
-    category = data.get('category', '')
-    finance_data = get_finance_data()
-    if category in finance_data['expenses']:
-        del finance_data['expenses'][category]
-    save_finance_data(finance_data)
-    return jsonify({"success": True, "expenses": finance_data['expenses']})
+        # Remove the old record if the user changed the date
+        if original_date and original_date != month_date and original_date in records:
+            del records[original_date]
 
-@app.route('/api/upload_csv', methods=['POST'])
-def upload_csv():
+        records[month_date] = expenses
+        sync_monthly_data(finance_data)
+        save_finance_data(finance_data)
+ 
+    return jsonify({"success": True})
+
+@app.route('/api/delete_month', methods=['POST'])
+def delete_month():
     finance_data = get_finance_data()
+    month_date = request.json.get('date')
+    
+    if month_date in finance_data.get('monthly_records', {}):
+        del finance_data['monthly_records'][month_date]
+        sync_monthly_data(finance_data)
+        save_finance_data(finance_data)
+        
+    return jsonify({"success": True})
+
+@app.route('/api/parse_csv', methods=['POST'])
+def parse_csv():
+    # Parses the CSV and returns data to the UI form, but does NOT save to database yet.
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
     try:
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         reader = csv.DictReader(stream)
+        parsed_expenses = {}
         added = 0
-        finance_data = get_finance_data()
-        
-        # Save preview of parsed rows
-        preview_data = []
         
         for row in reader:
             cat = row.get('category', row.get('Category', ''))
             amt = row.get('amount', row.get('Amount', 0))
             if cat and amt:
-                finance_data['expenses'][cat] = finance_data['expenses'].get(cat, 0) + float(amt)
+                parsed_expenses[cat] = parsed_expenses.get(cat, 0) + float(amt)
                 added += 1
-                if len(preview_data) < 5:
-                    preview_data.append({"category": cat, "amount": amt})
-        save_finance_data(finance_data)
-        alerts = check_budget_alerts(finance_data)
-        return jsonify({
-            "success": True, 
-            "added": added, 
-            "expenses": finance_data['expenses'],
-            "alerts": alerts,
-            "preview": preview_data
-        })
+                
+        return jsonify({"success": True, "added": added, "expenses": parsed_expenses})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+# Backward compatibility for the Dashboard's "Quick Setup" card
+@app.route('/api/add_expense', methods=['POST'])
+def add_expense():
+    finance_data = get_finance_data()
+    data = request.json
+    cat = data.get('category')
+    amt = float(data.get('amount', 0))
+    
+    records = finance_data.setdefault('monthly_records', {})
+    curr = sorted(records.keys())[-1] if records else datetime.datetime.now().strftime('%Y-%m')
+    if curr not in records: 
+        records[curr] = {}
+    records[curr][cat] = records[curr].get(cat, 0) + amt
+    
+    sync_monthly_data(finance_data)
+    save_finance_data(finance_data)
+    return jsonify({"success": True})
+
+@app.route('/api/remove_expense', methods=['POST'])
+def remove_expense():
+    finance_data = get_finance_data()
+    cat = request.json.get('category')
+    records = finance_data.setdefault('monthly_records', {})
+    if records:
+        curr = sorted(records.keys())[-1]
+        if cat in records[curr]:
+            del records[curr][cat]
+            sync_monthly_data(finance_data)
+            save_finance_data(finance_data)
+    return jsonify({"success": True})
 
 @app.route('/api/update_savings_goal', methods=['POST'])
 def update_savings_goal():
@@ -889,7 +1009,7 @@ def download_report():
 
     story.append(Paragraph("FundSight Financial Report", title_style))
     story.append(Spacer(1, 0.2*inch))
-    story.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%B %d, %Y')}", body_style))
+    story.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y')}", body_style))
     story.append(Spacer(1, 0.2*inch))
 
     story.append(Paragraph("Financial Summary", heading_style))
@@ -968,7 +1088,7 @@ def download_report():
     doc.build(story)
     buffer.seek(0)
     return send_file(buffer, as_attachment=True,
-                     download_name=f"FundSight_Report_{datetime.datetime.now().strftime('%Y%m%d')}.pdf",
+                     download_name=f"FundSight_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
                      mimetype='application/pdf')
 
 @app.route('/api/clear_chat', methods=['POST'])
@@ -985,8 +1105,10 @@ def clear_data():
     finance_data['expenses'] = {}
     finance_data['savings_goal'] = {"name": "", "amount": 0, "timeline_months": 0}
     finance_data['risk_level'] = "Medium"
+    finance_data['chat_history'] = []
     finance_data['budget_alerts'] = {}
     finance_data['historical_expenses'] = []
+    finance_data['monthly_records'] = {}
     save_finance_data(finance_data)
     return jsonify({"success": True})
 
@@ -1024,22 +1146,14 @@ def remove_history():
 def forecast_expense():
     finance_data = get_finance_data()
     hist_records = finance_data.get('historical_expenses', [])
-    current_total = sum(finance_data.get('expenses', {}).values())
     
-    # Extract historical periods and amounts
-    labels = [r.get('period', f"Past {i+1}") for i, r in enumerate(hist_records)]
+    # The sync function already grouped everything perfectly by month
+    labels = [r.get('period', f"Month {i+1}") for i, r in enumerate(hist_records)]
     amounts = [float(r.get('amount', 0)) for r in hist_records]
     
-    # Always include the current ongoing month if there are expenses
-    if current_total > 0:
-        labels.append('Current')
-        amounts.append(current_total)
-    
-    if not amounts:
+    if len(amounts) == 0:
         return jsonify({"error": "No expense data available. Please add expenses first."}), 400
     
-    # If we only have 1 data point, we can't draw a regression line. 
-    # Return the data safely without forecasting.
     if len(amounts) < 2:
         return jsonify({
             "forecast": amounts[0],
@@ -1048,15 +1162,14 @@ def forecast_expense():
             "needs_more_data": True
         })
         
-    # Prepare Data for Scikit-Learn
+    # Machine Learning execution
     X = np.array(range(len(amounts))).reshape(-1, 1)
     y = np.array(amounts)
     
     reg = LinearRegression().fit(X, y)
     next_month_idx = np.array([[len(amounts)]])
-    prediction = max(0, float(reg.predict(next_month_idx)[0])) # Prevent negative forecasts
+    prediction = max(0, float(reg.predict(next_month_idx)[0]))
     
-    # Append the forecast to the end of our arrays so the frontend can draw it
     labels.append('Forecast')
     amounts.append(prediction)
     
